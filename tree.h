@@ -6,9 +6,33 @@
 
 namespace tree
 {
+    enum class node_type_t
+    {
+        OP,
+        VAL,
+        VAR
+    };
+
+    enum class op_type_t
+    {
+        ADD,
+        SUB,
+        DIV,
+        MUL,
+        SIN,
+    };
+
+    union node_data_t
+    {
+            double val;
+            op_type_t op;
+            unsigned char var;
+    };
+
     struct node_t
     {
-        void *value;
+        node_type_t type;
+        node_data_t data;        
 
         node_t *left;
         node_t *right;
@@ -17,9 +41,6 @@ namespace tree
 
     struct tree_t
     {
-        int (*objcmp)(const void*, const void *);
-        size_t obj_size;
-
         node_t *head_node;
     };
 
@@ -32,14 +53,11 @@ namespace tree
 
     typedef bool (*walk_f)(node_t *node, void *param, bool cont);
 
-    void ctor (tree_t *tree, size_t obj_size, int (*objcmp)(const void *, const void *));
+    void ctor (tree_t *tree);
     void dtor (tree_t *tree);
 
-    tree_err_t insert (tree_t *tree, const void *elem);
-    tree_err_t insert_left  (tree_t *tree, node_t *node, const void *elem);
-    tree_err_t insert_right (tree_t *tree, node_t *node, const void *elem);
-
-    void change_value (tree_t *tree, node_t *node, const void *elem);
+    tree_err_t insert_left  (tree_t *tree, node_t *node, op_type_t type, node_data_t data);
+    tree_err_t insert_right (tree_t *tree, node_t *node, op_type_t type, node_data_t data);
 
     bool dfs_exec (tree_t *tree, walk_f pre_exec,  void *pre_param,
                                  walk_f in_exec,   void *in_param,
@@ -51,7 +69,7 @@ namespace tree
 
     int graph_dump (tree_t *tree, const char *reason_fmt, ...);
 
-    tree::node_t *new_node (const void *elem, size_t obj_size);
+    tree::node_t *new_node (op_type_t type, node_data_t data);
 }
 
 #endif //TREE_H

@@ -5,7 +5,6 @@
 
 #include "common.h"
 #include "lib/log.h"
-#include "lib/stack/stack.h"
 
 #include "tree.h"
 
@@ -22,12 +21,6 @@ struct load_params
 // ----------------------------------------------------------------------------
 // CONST SECTION
 // ----------------------------------------------------------------------------
-
-const tree::node_t DEFAULT_NODE = {
-    nullptr,    // value
-    nullptr,    // left
-    nullptr,    // right
-};
 
 const char PREFIX[] = "digraph {\nnode [shape=record,style=\"filled\"]\nsplines=spline;\n";
 static const size_t DUMP_FILE_PATH_LEN = 15;
@@ -50,13 +43,10 @@ static bool eat_closing_bracket (tree::node_t *node, void *params, bool cont);
 // PUBLIC SECTION
 // ----------------------------------------------------------------------------
 
-void tree::ctor (tree_t *tree, size_t obj_size, int (*objcmp)(const void *, const void *))
+void tree::ctor (tree_t *tree)
 {
     assert (tree   != nullptr && "invalid pointer");
-    assert (objcmp != nullptr && "invalid pointer");
 
-    tree->objcmp    = objcmp;
-    tree->obj_size  = obj_size;
     tree->head_node = nullptr;
 }
 
@@ -71,71 +61,14 @@ void tree::dtor (tree_t *tree)
                     free_node_func, nullptr);
 }
 
-// ----------------------------------------------------------------------------
-
-tree::tree_err_t tree::insert (tree_t *tree, const void *elem)
-{
-    assert (tree != nullptr && "invalid pointer");
-    assert (elem != nullptr && "invalid pointer");
-
-    node_t *allocated_node = new_node (elem, tree->obj_size);
-    if (allocated_node == nullptr) { return OOM; };
-
-    node_t *current_node = tree->head_node;
-
-    if (current_node == nullptr)
-    {
-        tree->head_node = allocated_node;
-        return OK;
-    }
-
-    int cmpres = 0;
-
-    while (true)
-    {
-        cmpres = tree->objcmp (current_node->value, elem);
-
-        if (cmpres > 0)
-        {
-            if (current_node->right != nullptr)
-            {
-                current_node = current_node->right;
-            }
-            else
-            {
-                break;
-            }
-        }
-        else
-        {
-            if (current_node->left != nullptr)
-            {
-                current_node = current_node->left;
-            }
-            else
-            {
-                break;
-            }
-        }
-    }
-
-    if (cmpres > 0) current_node->right = allocated_node;
-    else            current_node->left  = allocated_node;
-
-    return OK;
-}
-
-// ----------------------------------------------------------------------------
-
-tree::tree_err_t tree::insert_left  (tree_t *tree, node_t *node, const void *elem)
+tree::tree_err_t tree::insert_left (tree_t *tree, node_t *node, op_type_t type, node_data_t data)
 {
     assert (tree != nullptr && "inVALid poointer");
     assert (node != nullptr && "inVALid poointer");
-    assert (elem != nullptr && "inVALid poointer");
 
     assert (node->left == nullptr && "left node already exists");
 
-    node_t *allocated_node = new_node (elem, tree->obj_size); 
+    node_t *allocated_node = new_node (type, data); 
     if (allocated_node == nullptr) { return OOM; }
 
     node->left = allocated_node;
@@ -145,31 +78,19 @@ tree::tree_err_t tree::insert_left  (tree_t *tree, node_t *node, const void *ele
 
 // ----------------------------------------------------------------------------
 
-tree::tree_err_t tree::insert_right  (tree_t *tree, node_t *node, const void *elem)
+tree::tree_err_t tree::insert_right  (tree_t *tree, node_t *node, op_type_t type, node_data_t data)
 {
     assert (tree != nullptr && "inVALid poointer");
     assert (node != nullptr && "inVALid poointer");
-    assert (elem != nullptr && "inVALid poointer");
 
     assert (node->right == nullptr && "right node already exists");
 
-    node_t *allocated_node = new_node (elem, tree->obj_size); 
+    node_t *allocated_node = new_node (type, data); 
     if (allocated_node == nullptr) { return OOM; }
 
     node->right = allocated_node;
 
     return OK;
-}
-
-// ----------------------------------------------------------------------------
-
-void tree::change_value (tree_t *tree, node_t *node, const void *elem)
-{
-    assert (tree != nullptr && "inVALid poointer");
-    assert (node != nullptr && "inVALid poointer");
-    assert (elem != nullptr && "inVALid poointer");
-
-    memcpy (node + 1, elem, tree->obj_size);
 }
 
 // ----------------------------------------------------------------------------
@@ -378,8 +299,9 @@ static bool node_codegen (tree::node_t *node, void *stream_void, bool)
 
     FILE *stream = (FILE *) stream_void;
 
-    fprintf (stream, "node_%p [label = \"%s | {l: %p | r: %p}\", fillcolor=\"%s\"]\n", node, (char *) node->value,
-                                                                    node->left, node->right, node->present ? "green" : "cyan");
+    fprintf (stream, "node_%p [label = \"%s | {l: %p | r: %p}\", fillcolor=\"%s\"]\n",
+                                                        node, (char *) node->value,
+                                                        node->left, node->right, node->present ? "green" : "cyan");
 
     if (node->left != nullptr)
     {
