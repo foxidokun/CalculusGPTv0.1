@@ -8,35 +8,37 @@ namespace tree
 {
     enum class node_type_t
     {
+        NOT_SET,
         OP,
         VAL,
         VAR
     };
 
-    enum class op_type_t
+    enum class op_t
     {
         ADD,
         SUB,
         DIV,
         MUL,
         SIN,
-    };
-
-    union node_data_t
-    {
-            double val;
-            op_type_t op;
-            unsigned char var;
+        COS,
+        EXP,
+        POW,
+        LOG
     };
 
     struct node_t
     {
-        node_type_t type;
-        node_data_t data;        
+        node_type_t type = node_type_t::NOT_SET;
+        union
+        {
+            double val;
+            op_t op;
+            unsigned char var;
+        };
 
-        node_t *left;
-        node_t *right;
-        bool present;
+        node_t *left    = nullptr;
+        node_t *right   = nullptr;
     };
 
     struct tree_t
@@ -56,20 +58,23 @@ namespace tree
     void ctor (tree_t *tree);
     void dtor (tree_t *tree);
 
-    tree_err_t insert_left  (tree_t *tree, node_t *node, op_type_t type, node_data_t data);
-    tree_err_t insert_right (tree_t *tree, node_t *node, op_type_t type, node_data_t data);
-
     bool dfs_exec (tree_t *tree, walk_f pre_exec,  void *pre_param,
                                  walk_f in_exec,   void *in_param,
                                  walk_f post_exec, void *post_param);
 
+    void change_node (node_t *node, double val);
+    void change_node (node_t *node, op_t   op);
+    void change_node (node_t *node, unsigned char var);
 
     void store (tree_t *tree, FILE *stream);
     tree::tree_err_t load (tree_t *tree, FILE *dump);
 
     int graph_dump (tree_t *tree, const char *reason_fmt, ...);
 
-    tree::node_t *new_node (op_type_t type, node_data_t data);
+    tree::node_t *new_node ();
+    tree::node_t *new_node (double val);
+    tree::node_t *new_node (op_t   op);
+    tree::node_t *new_node (unsigned char var);
 }
 
 #endif //TREE_H

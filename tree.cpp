@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <cstdio>
 #include <string.h>
 #include <stdarg.h>
 #include <ctype.h>
@@ -22,6 +23,8 @@ struct load_params
 // CONST SECTION
 // ----------------------------------------------------------------------------
 
+const int MAX_NODE_LEN = 12;
+
 const char PREFIX[] = "digraph {\nnode [shape=record,style=\"filled\"]\nsplines=spline;\n";
 static const size_t DUMP_FILE_PATH_LEN = 15;
 static const char DUMP_FILE_PATH_FORMAT[] = "dump/%d.grv";
@@ -35,7 +38,11 @@ static bool dfs_recursion (tree::node_t *node, tree::walk_f pre_exec,  void *pre
                                                tree::walk_f post_exec, void *post_param);
 
 static bool node_codegen (tree::node_t *node, void *stream_void, bool cont);
-static bool node_load    (tree::node_t *node, void *stream_void, bool cont);
+static bool load_node    (tree::node_t *node, void *params, bool cont);
+static bool create_childs_if_needed (tree::node_t *node, void *params, bool cont);
+
+static const char *get_op_name (tree::op_t op);
+static void format_node (char *buf, const tree::node_t *node);
 
 static bool eat_closing_bracket (tree::node_t *node, void *params, bool cont);
 
@@ -45,7 +52,7 @@ static bool eat_closing_bracket (tree::node_t *node, void *params, bool cont);
 
 void tree::ctor (tree_t *tree)
 {
-    assert (tree   != nullptr && "invalid pointer");
+    assert (tree != nullptr && "invalid pointer");
 
     tree->head_node = nullptr;
 }
@@ -59,38 +66,6 @@ void tree::dtor (tree_t *tree)
     dfs_exec (tree, nullptr,        nullptr,
                     nullptr,        nullptr,
                     free_node_func, nullptr);
-}
-
-tree::tree_err_t tree::insert_left (tree_t *tree, node_t *node, op_type_t type, node_data_t data)
-{
-    assert (tree != nullptr && "inVALid poointer");
-    assert (node != nullptr && "inVALid poointer");
-
-    assert (node->left == nullptr && "left node already exists");
-
-    node_t *allocated_node = new_node (type, data); 
-    if (allocated_node == nullptr) { return OOM; }
-
-    node->left = allocated_node;
-
-    return OK;
-}
-
-// ----------------------------------------------------------------------------
-
-tree::tree_err_t tree::insert_right  (tree_t *tree, node_t *node, op_type_t type, node_data_t data)
-{
-    assert (tree != nullptr && "inVALid poointer");
-    assert (node != nullptr && "inVALid poointer");
-
-    assert (node->right == nullptr && "right node already exists");
-
-    node_t *allocated_node = new_node (type, data); 
-    if (allocated_node == nullptr) { return OOM; }
-
-    node->right = allocated_node;
-
-    return OK;
 }
 
 // ----------------------------------------------------------------------------
@@ -109,6 +84,32 @@ bool tree::dfs_exec (tree_t *tree, walk_f pre_exec,  void *pre_param,
 
 // ----------------------------------------------------------------------------
 
+void tree::change_node (node_t *node, double val)
+{
+    assert (node != nullptr && "invalid pointer");
+
+    node->val  = val;
+    node->type = node_type_t::VAL;
+}
+
+void tree::change_node (node_t *node, op_t op)
+{
+    assert (node != nullptr && "invalid pointer");
+
+    node->op   = op;
+    node->type = node_type_t::OP;
+}
+
+void tree::change_node (node_t *node, unsigned char var)
+{
+    assert (node != nullptr && "invalid pointer");
+
+    node->var  = var;
+    node->type = node_type_t::VAR;
+}
+
+// ----------------------------------------------------------------------------
+
 void tree::store (tree_t *tree, FILE *stream)
 {
     assert (tree   != nullptr && "invalid pointer");
@@ -116,13 +117,16 @@ void tree::store (tree_t *tree, FILE *stream)
 
     walk_f pre_exec = [](node_t *node, void *inner_stream, bool)
         {
+            char buf[MAX_NODE_LEN] = "";
+            format_node (buf, node);
+
             if (node->left || node->right)
             {
-                fprintf ((FILE *) inner_stream, "{ '%s'\n", (char *) node->value);
+                fprintf ((FILE *) inner_stream, "{ '%s'\n", buf);
             }
             else
             {
-                fprintf ((FILE *) inner_stream, "{ '%s' ",   (char *) node->value);
+                fprintf ((FILE *) inner_stream, "{ '%s' ",  buf);
             }
 
             return true;
@@ -149,7 +153,7 @@ tree::tree_err_t tree::load (tree_t *tree, FILE *dump)
     assert (tree != nullptr && "pointer can't be null");
     assert (tree->head_node == nullptr && "non empty tree");
 
-    tree->head_node = new_node (DEFAULT_NODE_VALUE, OBJ_SIZE);
+    tree->head_node = new_node ();
     if (tree->head_node == nullptr)
     {
         return OOM;
@@ -157,9 +161,9 @@ tree::tree_err_t tree::load (tree_t *tree, FILE *dump)
 
     load_params params = {dump, tree};
 
-    if (!dfs_exec (tree, node_load,             &params,
-                         nullptr,               nullptr,
-                         eat_closing_bracket,   &params))
+    if (!dfs_exec (tree, create_childs_if_needed, &params,
+                         load_node,               &params,
+                         eat_closing_bracket,     &params))
     {
         log (log::ERR, "Failed to load tree");
         return INVALID_DUMP;
@@ -228,19 +232,15 @@ int tree::graph_dump (tree_t *tree, const char *reason_fmt, ...)
 
 // ----------------------------------------------------------------------------
 
-tree::node_t *tree::new_node (const void *elem, size_t obj_size)
+tree::node_t *tree::new_node ()
 {
-    assert (elem != nullptr && "invalid pointer");
-    assert (obj_size != 0 && "invalid size");
-
-    tree::node_t *node = (tree::node_t *) calloc (sizeof (tree::node_t) + obj_size, 1);
+    tree::node_t *node = (tree::node_t *) calloc (sizeof (tree::node_t), 1);
     if (node == nullptr) { return nullptr; }
 
-    memcpy (node, &DEFAULT_NODE, sizeof (tree::node_t));
-    memcpy (node + 1, elem, obj_size);
-    
-    node->value   = node + 1;
-    node->present = false;
+    const tree::node_t default_node = {};
+    memcpy (node, &default_node, sizeof (tree::node_t));
+
+    node->type    = node_type_t::NOT_SET;    
 
     return node;
 }
@@ -298,10 +298,12 @@ static bool node_codegen (tree::node_t *node, void *stream_void, bool)
     assert (stream_void != nullptr && "invalid pointer");
 
     FILE *stream = (FILE *) stream_void;
+    char buf[MAX_NODE_LEN] = "";
+    format_node (buf, node);
 
-    fprintf (stream, "node_%p [label = \"%s | {l: %p | r: %p}\", fillcolor=\"%s\"]\n",
-                                                        node, (char *) node->value,
-                                                        node->left, node->right, node->present ? "green" : "cyan");
+    fprintf (stream, "node_%p [label = \"%s | {l: %p | r: %p}\"]\n",
+                                                        node, buf,
+                                                        node->left, node->right);
 
     if (node->left != nullptr)
     {
@@ -326,75 +328,167 @@ static bool node_codegen (tree::node_t *node, void *stream_void, bool)
     }                       \
 }
 
-static bool node_load (tree::node_t *node, void *params, bool cont)
+#define CASE_OP(symb)           \
+    case symb:                  \
+        need_right = true;      \
+        break;
+
+static bool create_childs_if_needed (tree::node_t *node, void *params, bool cont)
 {
     assert (node   != nullptr && "invalid pointer");
     assert (params != nullptr && "invalid pointer");
 
-    if (!cont)
+    FILE *stream       = ((load_params *) params)->stream;
+    tree::tree_t *tree = ((load_params *) params)->tree;
+    int c              = getc (stream);
+    SKIP_SPACES ();
+
+    if (c != '(')
     {
+        log (log::ERR, "Expected ( node opening, got '%c' (%d)", c, c);
         return false;
     }
 
-    FILE *stream       = ((load_params *) params)->stream;
-    tree::tree_t *tree = ((load_params *) params)->tree;
-
-    int c = getc (stream);
-    char buf[OBJ_SIZE + 1] = ""; 
-
+    c = getc (stream);
     SKIP_SPACES ();
-
-    if (c == '{')
+    if (c == '(')
     {
-        c = getc (stream);
-        SKIP_SPACES ();
-
-        if (c != '\'')
-        {
-            log (log::ERR, "Invalid node syntax");
-            return false;
-        }
-
-        int i = 0;
-        for (; i < OBJ_SIZE; ++i)
-        {
-            c = getc (stream);
-
-            if (c == '\'')
-            {
-                break;
-            }
-
-            buf[i] = (char) c;
-        }
-
-        buf[i] = '\0';
-    }
-
-    tree::change_value (tree, node, buf);
-    node->present = true;
-
-    while (c != '{' && c != '}')
-    {
-        c = getc (stream);
-    }
-
-    if (c == '}')
-    {
-        node->left  = nullptr;
-        node->right = nullptr;
+        node->left  = tree::new_node();
+        node->right = tree::new_node();
     }
     else
     {
-        node->left  = tree::new_node (DEFAULT_NODE_VALUE, OBJ_SIZE);
-        node->right = tree::new_node (DEFAULT_NODE_VALUE, OBJ_SIZE);
+        bool need_right = true;
+
+        switch (c) {
+            CASE_OP('s')
+            CASE_OP('c')
+            CASE_OP('e')
+            CASE_OP('p')
+            CASE_OP('l')
+            
+            default:
+                need_right = false;
+                break;
+        }
+
+        node->left  = nullptr;
+
+        if (need_right) node->right = tree::new_node();
+        else            node->right = nullptr;
     }
 
     ungetc (c, stream);
 
-    SKIP_SPACES ();
+    return true;
+}
+
+#undef CASE_OP
+
+#define CASE_OP(symb, op)                           \
+    case symb:                                      \
+        tree::change_node (node, tree::op_t::op);   \
+        return true;
+
+static bool load_node (tree::node_t *node, void *params, bool cont)
+{
+    assert (node   != nullptr && "invalid pointer");
+    assert (params != nullptr && "invalid pointer");
+
+    FILE *stream       = ((load_params *) params)->stream;
+    tree::tree_t *tree = ((load_params *) params)->tree;
+    bool is_parent     = false;
+    int c              = getc (stream);
+    char buf[MAX_NODE_LEN + 1] = ""; 
+
+    SKIP_SPACES();
+
+    switch (c) {
+        CASE_OP('+', ADD)
+        CASE_OP('-', SUB)
+        CASE_OP('*', MUL)
+        CASE_OP('/', DIV)
+        CASE_OP('s', SIN)
+        CASE_OP('c', COS)
+        CASE_OP('e', EXP)
+        CASE_OP('p', POW)
+        CASE_OP('l', LOG)
+    }
+
+    if (isalpha (c))
+    {
+        node->type = tree::node_type_t::VAR;
+        node->var  = c;
+        return true;
+    }
+
+    ungetc (c, stream);
+    if (fscanf (stream, "%lg", &node->val) != 1)
+    {
+        return false;
+    }
+    else
+    {
+        node->type = tree::node_type_t::VAL;
+        return true;
+    }
 
     return true;
+}
+
+#undef CASE_OP
+
+// ----------------------------------------------------------------------------
+
+#define FORMAT(type, fmt)
+
+static void format_node (char *buf, const tree::node_t *node) 
+{
+    assert (buf  != nullptr && "invalid pointer");
+    assert (node != nullptr && "invalid pointer");
+
+    switch (node->type)
+    {
+        case tree::node_type_t::OP:
+            sprintf (buf, "%s", get_op_name(node->op));
+            break;
+
+        case tree::node_type_t::VAL:
+            sprintf (buf, "%f", node->val);
+            break;
+
+        case tree::node_type_t::VAR:
+            sprintf (buf, "%c", node->var);
+            break;
+
+        case tree::node_type_t::NOT_SET:
+            sprintf (buf, "not set");
+            break;
+
+        default:
+            log (log::ERR, "Ivalid node type %d lol");
+            assert (0 && "unexpected node type");
+    }
+}
+
+// ----------------------------------------------------------------------------
+
+#define _OP(op, name)      \
+    case tree::op_t::op:   \
+        return name;       \
+
+static const char *get_op_name (tree::op_t op)
+{
+    switch (op) {
+        _OP(ADD, "+")
+        _OP(SUB, "-")
+        _OP(DIV, "/")
+        _OP(MUL, "*")
+        _OP(SIN, "sin")
+
+        default:
+            assert (0 && "Invalid op, possible union error");
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -415,7 +509,7 @@ static bool eat_closing_bracket (tree::node_t *node, void *params, bool cont)
 
     SKIP_SPACES();
 
-    if (c != '}')
+    if (c != ')')
     {
         log (log::ERR, "Invalid dump: no closing bracket");
         return false;
