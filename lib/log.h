@@ -6,11 +6,11 @@
 #include <time.h>
 
 #ifndef HTML_LOGS
-    #define HTML_LOGS 1
+    #define HTML_LOGS 0
 #endif
 
 #ifndef TEXT_LOGS
-    #define TEXT_LOGS 0
+    #define TEXT_LOGS 1
 #endif
 
 enum class log
