@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <cstdio>
+#include <cstdlib>
 #include <string.h>
 #include <stdarg.h>
 #include <ctype.h>
@@ -245,6 +246,39 @@ tree::node_t *tree::new_node ()
     return node;
 }
 
+tree::node_t *tree::new_node (double val)
+{
+    tree::node_t *node = (tree::node_t *) calloc (sizeof (tree::node_t), 1);
+    if (node == nullptr) { return nullptr; }
+
+    node->type = node_type_t::VAL;
+    node->val  = val;    
+
+    return node;
+}
+
+tree::node_t *tree::new_node (op_t op)
+{
+    tree::node_t *node = (tree::node_t *) calloc (sizeof (tree::node_t), 1);
+    if (node == nullptr) { return nullptr; }
+
+    node->type = node_type_t::OP;
+    node->op   = op;    
+
+    return node;
+}
+
+tree::node_t *tree::new_node (unsigned char var)
+{
+    tree::node_t *node = (tree::node_t *) calloc (sizeof (tree::node_t), 1);
+    if (node == nullptr) { return nullptr; }
+
+    node->type = node_type_t::VAR;
+    node->var  = var;    
+
+    return node;
+}
+
 // ----------------------------------------------------------------------------
 // PRIVATE SECTION
 // ----------------------------------------------------------------------------
@@ -485,6 +519,10 @@ static const char *get_op_name (tree::op_t op)
         _OP(DIV, "/")
         _OP(MUL, "*")
         _OP(SIN, "sin")
+        _OP(COS, "cos")
+        _OP(EXP, "exp")
+        _OP(POW, "pow")
+        _OP(LOG, "log")
 
         default:
             assert (0 && "Invalid op, possible union error");
