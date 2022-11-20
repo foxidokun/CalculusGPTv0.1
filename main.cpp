@@ -17,5 +17,9 @@ int main()
 
     tree::graph_dump (&res, "after diff");
 
+    simplify_tree (&res);
+    tree::graph_dump (&res, "simplified");
+
     tree::dtor(&tree);
+    tree::dtor(&res);
 }
