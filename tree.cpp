@@ -53,11 +53,7 @@ void tree::dtor (tree_t *tree)
 {
     assert (tree != nullptr && "invalid pointer");
 
-    tree::walk_f free_node_func = [](node_t* node, void *, bool){ free(node); return true; };
-
-    dfs_exec (tree, nullptr,        nullptr,
-                    nullptr,        nullptr,
-                    free_node_func, nullptr);
+    del_node (tree->head_node);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -270,7 +266,45 @@ tree::node_t *tree::new_node (unsigned char var)
     return node;
 }
 
-// ----------------------------------------------------------------------------
+// -------------------------------------------------------------------------------------------------
+
+void tree::del_node (node_t *start_node)
+{
+    assert (start_node != nullptr);
+
+    tree::walk_f free_node_func = [](node_t* node, void *, bool){ free(node); return true; };
+
+    dfs_recursion (start_node, nullptr,        nullptr,
+                               nullptr,        nullptr,
+                               free_node_func, nullptr);
+}
+
+void tree::del_left  (node_t *node)
+{
+    assert (node != nullptr && "invalid pointer");
+
+    del_node (node->left);
+    node->left = nullptr;
+}
+
+void tree::del_right (node_t *node)
+{
+    assert (node != nullptr && "invalid pointer");
+
+    del_node (node->right);
+    node->right = nullptr;
+}
+
+void tree::del_childs (node_t *node)
+{
+    assert (node != nullptr && "invalid pointer");
+
+    del_node (node->right);
+    del_node (node->left);
+    node->right = nullptr;
+    node->left  = nullptr;
+}
+// -------------------------------------------------------------------------------------------------
 // PRIVATE SECTION
 // -------------------------------------------------------------------------------------------------
 
