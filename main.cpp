@@ -4,7 +4,7 @@
 
 int main()
 {
-    FILE *dump = fopen ("dump.txt", "r");
+    FILE *dump = fopen ("inp.txt", "r");
 
     tree::tree_t tree;
     tree::ctor (&tree);
