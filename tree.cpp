@@ -166,7 +166,7 @@ tree::tree_err_t tree::load (tree_t *tree, FILE *dump)
                          load_node,               &params,
                          eat_closing_bracket,     &params))
     {
-        log (log::ERR, "Failed to load tree");
+        LOG (log::ERR, "Failed to load tree");
         return INVALID_DUMP;
     }
 
@@ -189,7 +189,7 @@ int tree::graph_dump (tree_t *tree, const char *reason_fmt, ...)
     FILE *dump_file = fopen (filepath, "w");
     if (dump_file == nullptr)
     {
-        log (log::ERR, "Failed to open dump file '%s'", filepath);
+        LOG (log::ERR, "Failed to open dump file '%s'", filepath);
         return counter;
     }
 
@@ -207,7 +207,7 @@ int tree::graph_dump (tree_t *tree, const char *reason_fmt, ...)
     sprintf (cmd, "dot -T png -o %s.png %s", filepath, filepath);
     if (system (cmd) != 0)
     {
-        log (log::ERR, "Failed to execute '%s'", cmd);
+        LOG (log::ERR, "Failed to execute '%s'", cmd);
     }
 
     va_list args;
@@ -379,7 +379,7 @@ static bool create_childs_if_needed (tree::node_t *node, void *params, bool cont
 
     if (c != '(')
     {
-        log (log::ERR, "Expected ( node opening, got '%c' (%d)", c, c);
+        LOG (log::ERR, "Expected ( node opening, got '%c' (%d)", c, c);
         return false;
     }
 
@@ -500,7 +500,7 @@ static void format_node (char *buf, const tree::node_t *node)
             break;
 
         default:
-            log (log::ERR, "Ivalid node type %d lol");
+            LOG (log::ERR, "Ivalid node type %d lol");
             assert (0 && "unexpected node type");
     }
 }
@@ -549,7 +549,7 @@ static bool eat_closing_bracket (tree::node_t *node, void *params, bool cont)
 
     if (c != ')')
     {
-        log (log::ERR, "Invalid dump: no closing bracket");
+        LOG (log::ERR, "Invalid dump: no closing bracket");
         return false;
     }
 

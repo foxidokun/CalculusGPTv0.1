@@ -61,7 +61,7 @@ static inline void current_time (char *buf, size_t buf_size);
 
 void _log (enum log lvl, const char *fmt, const char *file, unsigned int line, ...);
 
-#define log(lvl, fmt, ...)                               \
+#define LOG(lvl, fmt, ...)                               \
 {                                                        \
     _log (lvl, fmt, __FILE__, __LINE__, ##__VA_ARGS__);  \
 }                                                       
