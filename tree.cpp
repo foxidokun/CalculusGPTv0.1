@@ -202,9 +202,9 @@ int tree::graph_dump (tree_t *tree, const char *reason_fmt, ...)
     va_list args;
     va_start (args, reason_fmt);
 
-    FILE *stream = get_log_stream ();
-
     #if HTML_LOGS
+        FILE *stream = get_log_stream ();
+
         fprintf  (stream, "<h2>List dump: ");
         vfprintf (stream, reason_fmt, args);
         fprintf  (stream, "</h2>");
