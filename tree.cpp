@@ -107,7 +107,19 @@ void tree::change_node (node_t *node, unsigned char var)
     node->type = node_type_t::VAR;
 }
 
-// ----------------------------------------------------------------------------
+// -------------------------------------------------------------------------------------------------
+
+void tree::move_node (node_t *dest, node_t *src)
+{
+    assert (dest != nullptr && "invalid pointer");
+    assert (src  != nullptr && "invalid pointer");
+
+    memcpy (dest, src, sizeof (node_t));
+
+    free (src);
+}
+
+// -------------------------------------------------------------------------------------------------
 
 void tree::store (tree_t *tree, FILE *stream)
 {
