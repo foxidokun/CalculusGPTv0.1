@@ -10,17 +10,7 @@
 
 #include "tree.h"
 
-// ----------------------------------------------------------------------------
-// TYPE SECTION
-// ----------------------------------------------------------------------------
-
-struct load_params
-{
-    FILE         *stream;
-    tree::tree_t *tree;
-};
-
-// ----------------------------------------------------------------------------
+// -------------------------------------------------------------------------------------------------
 // CONST SECTION
 // ----------------------------------------------------------------------------
 
@@ -39,13 +29,13 @@ static bool dfs_recursion (tree::node_t *node, tree::walk_f pre_exec,  void *pre
                                                tree::walk_f post_exec, void *post_param);
 
 static bool node_codegen (tree::node_t *node, void *stream_void, bool cont);
-static bool load_node    (tree::node_t *node, void *params, bool cont);
-static bool create_childs_if_needed (tree::node_t *node, void *params, bool cont);
+static bool load_node    (tree::node_t *node, void *stream_void, bool);
+static bool create_childs_if_needed (tree::node_t *node, void *stream_void, bool);
 
 static const char *get_op_name (tree::op_t op);
 static void format_node (char *buf, const tree::node_t *node);
 
-static bool eat_closing_bracket (tree::node_t *node, void *params, bool cont);
+static bool eat_closing_bracket (tree::node_t *node, void *stream_void, bool cont);
 
 // ----------------------------------------------------------------------------
 // PUBLIC SECTION
@@ -160,11 +150,9 @@ tree::tree_err_t tree::load (tree_t *tree, FILE *dump)
         return OOM;
     }
 
-    load_params params = {dump, tree};
-
-    if (!dfs_exec (tree, create_childs_if_needed, &params,
-                         load_node,               &params,
-                         eat_closing_bracket,     &params))
+    if (!dfs_exec (tree, create_childs_if_needed, dump,
+                         load_node,               dump,
+                         eat_closing_bracket,     dump))
     {
         LOG (log::ERR, "Failed to load tree");
         return INVALID_DUMP;
@@ -367,14 +355,13 @@ static bool node_codegen (tree::node_t *node, void *stream_void, bool)
         need_right = true;      \
         break;
 
-static bool create_childs_if_needed (tree::node_t *node, void *params, bool cont)
+static bool create_childs_if_needed (tree::node_t *node, void *stream_void, bool)
 {
-    assert (node   != nullptr && "invalid pointer");
-    assert (params != nullptr && "invalid pointer");
+    assert (node        != nullptr && "invalid pointer");
+    assert (stream_void != nullptr && "invalid pointer");
 
-    FILE *stream       = ((load_params *) params)->stream;
-    tree::tree_t *tree = ((load_params *) params)->tree;
-    int c              = getc (stream);
+    FILE *stream  = (FILE *) stream_void;
+    int c         = getc (stream);
     SKIP_SPACES ();
 
     if (c != '(')
@@ -424,14 +411,12 @@ static bool create_childs_if_needed (tree::node_t *node, void *params, bool cont
         tree::change_node (node, tree::op_t::op);   \
         return true;
 
-static bool load_node (tree::node_t *node, void *params, bool cont)
+static bool load_node (tree::node_t *node, void *stream_void, bool)
 {
-    assert (node   != nullptr && "invalid pointer");
-    assert (params != nullptr && "invalid pointer");
+    assert (node        != nullptr && "invalid pointer");
+    assert (stream_void != nullptr && "invalid pointer");
 
-    FILE *stream       = ((load_params *) params)->stream;
-    tree::tree_t *tree = ((load_params *) params)->tree;
-    bool is_parent     = false;
+    FILE *stream       = (FILE *) stream_void;
     int c              = getc (stream);
     char buf[MAX_NODE_LEN + 1] = ""; 
 
@@ -531,17 +516,17 @@ static const char *get_op_name (tree::op_t op)
 
 // ----------------------------------------------------------------------------
 
-static bool eat_closing_bracket (tree::node_t *node, void *params, bool cont)
+static bool eat_closing_bracket (tree::node_t *node, void *stream_void, bool cont)
 {
-    assert (node   != nullptr && "invalid pointer");
-    assert (params != nullptr && "invalid pointer");
+    assert (node        != nullptr && "invalid pointer");
+    assert (stream_void != nullptr && "invalid pointer");
 
     if (!cont)
     {
         return false;
     }
 
-    FILE *stream       = ((load_params *) params)->stream;
+    FILE *stream       = (FILE *) stream_void;
 
     int c = getc (stream);
 
