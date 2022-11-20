@@ -440,7 +440,7 @@ static bool load_node (tree::node_t *node, void *stream_void, bool)
     if (isalpha (c))
     {
         node->type = tree::node_type_t::VAR;
-        node->var  = c;
+        node->var  = (unsigned char) c;
         return true;
     }
 
