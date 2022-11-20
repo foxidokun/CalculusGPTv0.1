@@ -466,10 +466,19 @@ static bool create_childs_if_needed (tree::node_t *node, void *stream_void, bool
 
 #undef CASE_OP
 
-#define CASE_OP(symb, op)                           \
-    case symb:                                      \
-        tree::change_node (node, tree::op_t::op);   \
-        return true;
+// -------------------------------------------------------------------------------------------------
+
+#define CASE_OP(str, op)                                        \
+    case str[0]:                                                \
+        while (str[++tmp_indx] != '\0'&&                        \
+                    (c = getc (stream)) == str[tmp_indx]) {};   \
+                                                                \
+        if (str[tmp_indx] == '\0') {                            \
+            tree::change_node (node, tree::op_t::op);           \
+            return true;                                        \
+        } else {                                                \
+            return false;                                       \
+        }
 
 static bool load_node (tree::node_t *node, void *stream_void, bool)
 {
@@ -478,20 +487,23 @@ static bool load_node (tree::node_t *node, void *stream_void, bool)
 
     FILE *stream       = (FILE *) stream_void;
     int c              = getc (stream);
-    char buf[MAX_NODE_LEN + 1] = ""; 
 
     SKIP_SPACES();
 
+    size_t tmp_indx = 0;
+
     switch (c) {
-        CASE_OP('+', ADD)
-        CASE_OP('-', SUB)
-        CASE_OP('*', MUL)
-        CASE_OP('/', DIV)
-        CASE_OP('s', SIN)
-        CASE_OP('c', COS)
-        CASE_OP('e', EXP)
-        CASE_OP('p', POW)
-        CASE_OP('l', LOG)
+        CASE_OP("+", ADD)
+        CASE_OP("-", SUB)
+        CASE_OP("*", MUL)
+        CASE_OP("/", DIV)
+        CASE_OP("sin", SIN)
+        CASE_OP("cos", COS)
+        CASE_OP("exp", EXP)
+        CASE_OP("^", POW)
+        CASE_OP("ln", LOG)
+        default:
+            break; // It's not operator
     }
 
     if (isalpha (c))
