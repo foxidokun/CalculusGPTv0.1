@@ -15,6 +15,7 @@
 // -------------------------------------------------------------------------------------------------
 
 const int MAX_NODE_LEN = 12;
+const int REASON_LEN   = 50;
 
 const char PREFIX[] = "digraph {\nnode [shape=record,style=\"filled\"]\nsplines=spline;\n";
 static const size_t DUMP_FILE_PATH_LEN = 15;
@@ -210,7 +211,9 @@ int tree::graph_dump (tree_t *tree, const char *reason_fmt, ...)
 
         fprintf (stream, "\n\n<img src=\"%s.png\">\n\n", filepath);
     #else
-        log (log::INF, "Dump path: %s.png", filepath);
+        char buf[REASON_LEN] = "";
+        vsprintf (buf, reason_fmt, args);
+        LOG (log::INF, "Dump path: %s.png, reason: %s", filepath, buf);
     #endif
 
     va_end (args);
