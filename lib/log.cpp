@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include "log.h"
 
-log __LOG_LEVEL = log::WRN;
+log __LOG_LEVEL = log::INF;
 FILE *__LOG_OUT_STREAM = stdout;
 
 void set_log_level (log level)
