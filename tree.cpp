@@ -70,7 +70,18 @@ bool tree::dfs_exec (tree_t *tree, walk_f pre_exec,  void *pre_param,
                                            post_exec, post_param);
 }
 
-// ----------------------------------------------------------------------------
+bool tree::dfs_exec (node_t *node, walk_f pre_exec,  void *pre_param,
+                                   walk_f in_exec,   void *in_param,
+                                   walk_f post_exec, void *post_param)
+{
+    assert (node != nullptr && "invalid pointer");
+
+    return dfs_recursion (node, pre_exec,  pre_param,
+                                in_exec,   in_param,
+                                post_exec, post_param);
+}
+
+// -------------------------------------------------------------------------------------------------
 
 void tree::change_node (node_t *node, double val)
 {
