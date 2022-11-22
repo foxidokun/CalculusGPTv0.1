@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "tree.h"
 #include "diff_calc.h"
+#include "tree_output.h"
 
 int main()
 {
@@ -17,7 +18,11 @@ int main()
 
     tree::graph_dump (&res, "after diff");
 
-    simplify_tree (&res);
+    tree::tree_t *trees[] = {&res};
+
+    tree::render_tex (trees, 1);
+
+    tree::simplify (&res);
     tree::graph_dump (&res, "simplified");
 
     tree::dtor(&tree);

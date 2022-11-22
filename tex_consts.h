@@ -1,0 +1,43 @@
+const char TEX_BEGIN[] = 
+"\\documentclass{beamer}\n"
+"\\usepackage{amsmath,amsthm,amssymb,amsfonts}\n"
+"\\usepackage[utf8]{inputenc}\n"
+"\\usepackage[T1]{fontenc}\n"
+"\\usepackage[english,russian]{babel}\n"
+"\n"
+"\\title{Введение в сорты матанализа}\n"
+"\\author{Гладышев Илья / Б05-233}\n"
+"\\institute{MIPT}\n"
+"\\graphicspath{ {assets} }\n"
+"\\logo{\\includegraphics[height=1cm]{rei}}\n"
+"\n"
+"\\AtBeginSection[]\n"
+"{\n"
+"  \begin{frame}\n"
+"    \frametitle{Table of Contents}\n"
+"    \tableofcontents[currentsection]\n"
+"  \end{frame}\n"
+"}\n"
+"\\begin{document}\n"
+"\n"
+"\\frame{\\titlepage}\n"
+"\n"
+"\\begin{frame}\n"
+"\\frametitle{Table of Contents}\n"
+"\\tableofcontents\n"
+"\\end{frame}\n"
+"\n"
+"\\begin{frame}{Introduction}\n"
+"    \\begin {itemize}\n"
+"        \\item Матанализ это весело\n"
+"        \\item LaTeX круто\n"
+"        \\item Прога позволяет их объединить\n"
+"    \\end {itemize}\n"
+"\\end{frame}\n"
+"\n"
+;
+
+const char TEX_END[] = "\\end{document}\n";
+
+const char FRAME_BEG[] = "\\begin{frame}\n\\[\n";
+const char FRAME_END[] = "\n\\]\n\\end{frame}\n";

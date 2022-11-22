@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <sys/mman.h>
 #include <cstdio>
 #include <cstdlib>
 #include <string.h>
@@ -6,15 +7,18 @@
 #include <ctype.h>
 
 #include "common.h"
+#include "file.h"
 #include "lib/log.h"
 
+#include "tree_parsing.h"
 #include "tree.h"
 
 // -------------------------------------------------------------------------------------------------
 // CONST SECTION
 // -------------------------------------------------------------------------------------------------
 
-const int MAX_NODE_LEN = 12;
+#define RECURSIVE_LOAD
+
 const int REASON_LEN   = 50;
 
 const char PREFIX[] = "digraph {\nnode [shape=record,style=\"filled\"]\nsplines=spline;\n";
@@ -158,6 +162,37 @@ void tree::store (tree_t *tree, FILE *stream)
 
 // -------------------------------------------------------------------------------------------------
 
+#ifdef RECURSIVE_LOAD
+
+
+tree::tree_err_t tree::load (tree_t *tree, FILE *dump)
+{
+    assert (dump != nullptr && "pointer can't be null");
+    assert (tree != nullptr && "pointer can't be null");
+    assert (tree->head_node == nullptr && "non empty tree");
+
+    int fd = fileno (dump);
+    size_t filesize = (size_t) file_size (dump);
+    const char *file = (const char *) mmap (NULL, filesize, PROT_READ, MAP_PRIVATE | MAP_POPULATE,
+                                                                                    fd, 0);
+
+    if (file == MAP_FAILED)
+    {
+        assert (0 && "mmap failure");
+        return MMAP_FAILURE;
+    }
+
+    tree->head_node = parse_dump (file);
+
+    if (tree->head_node == nullptr) {
+        return INVALID_DUMP;
+    } else {
+        return OK;
+    }
+}
+
+#else
+
 tree::tree_err_t tree::load (tree_t *tree, FILE *dump)
 {
     assert (dump != nullptr && "pointer can't be null");
@@ -180,6 +215,8 @@ tree::tree_err_t tree::load (tree_t *tree, FILE *dump)
 
     return OK;
 }
+
+#endif
 
 // -------------------------------------------------------------------------------------------------
 
@@ -293,7 +330,10 @@ tree::node_t *tree::new_node (unsigned char var)
 
 void tree::del_node (node_t *start_node)
 {
-    assert (start_node != nullptr);
+    if (start_node == nullptr)
+    {
+        return;
+    }
 
     tree::walk_f free_node_func = [](node_t* node, void *, bool){ free(node); return true; };
 
@@ -327,6 +367,7 @@ void tree::del_childs (node_t *node)
     node->right = nullptr;
     node->left  = nullptr;
 }
+
 // -------------------------------------------------------------------------------------------------
 // PRIVATE SECTION
 // -------------------------------------------------------------------------------------------------
@@ -530,8 +571,6 @@ static bool load_node (tree::node_t *node, void *stream_void, bool)
 #undef CASE_OP
 
 // -------------------------------------------------------------------------------------------------
-
-#define FORMAT(type, fmt)
 
 static void format_node (char *buf, const tree::node_t *node) 
 {

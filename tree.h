@@ -51,6 +51,7 @@ namespace tree
         OK = 0,
         OOM,
         INVALID_DUMP,
+        MMAP_FAILURE
     };
 
     typedef bool (*walk_f)(node_t *node, void *param, bool cont);

@@ -2,6 +2,7 @@
 #include <math.h>
 
 #include "tree.h"
+#include "tree_dsl.h"
 #include "diff_calc.h"
 
 // ----------------------------------------------------------------------------
@@ -19,17 +20,6 @@ static tree::node_t *diff_subtree (tree::node_t *node);
 static tree::node_t *diff_op      (tree::node_t *node);
 
 static tree::node_t *copy_subtree (tree::node_t *node);
-
-static tree::node_t *op_with_childs (tree::node_t *lhs, tree::node_t *rhs, tree::op_t op);
-    
-static tree::node_t *add (tree::node_t *lhs, tree::node_t *rhs);
-static tree::node_t *sub (tree::node_t *lhs, tree::node_t *rhs);
-static tree::node_t *div (tree::node_t *lhs, tree::node_t *rhs);
-static tree::node_t *mul (tree::node_t *lhs, tree::node_t *rhs);
-static tree::node_t *pow (tree::node_t *lhs, tree::node_t *rhs);
-static tree::node_t *sin (tree::node_t *arg);
-static tree::node_t *cos (tree::node_t *arg);
-static tree::node_t *log (tree::node_t *arg);
 
 static bool simplify_const_subtree     (tree::node_t *node);
 static bool simplify_primitive_subtree (tree::node_t *node);
@@ -66,6 +56,7 @@ static bool iseq (double lhs, double rhs);
 
 #define Lval node->left ->val
 #define Rval node->right->val
+#define Aval node->right->val
 
 #define LL  node->left ->left
 #define LR  node->left ->right
@@ -90,11 +81,13 @@ static bool iseq (double lhs, double rhs);
 #define isSINX(node) (isOP_TYPE (node, SIN) && (isVAR(node->right) && node->right->var == 'x'))
 #define isCOSX(node) (isOP_TYPE (node, COS) && (isVAR(node->right) && node->right->var == 'x'))
 
+#define diff_complex(func_diff) mul (func_diff, dA)
+
 // -------------------------------------------------------------------------------------------------
 // PUBLIC SECTION
 // -------------------------------------------------------------------------------------------------
 
-tree::tree_t calc_diff (const tree::tree_t *src)
+tree::tree_t tree::calc_diff (const tree::tree_t *src)
 {
     assert (src != nullptr);
     tree::tree_t res = {};
@@ -107,7 +100,7 @@ tree::tree_t calc_diff (const tree::tree_t *src)
 
 // -------------------------------------------------------------------------------------------------
 
-void simplify_tree (tree::tree_t *tree)
+void tree::simplify (tree::tree_t *tree)
 {
     assert (tree != nullptr && "invalid pointer");
 
@@ -136,7 +129,7 @@ static tree::node_t *diff_subtree (tree::node_t *node)
     switch (node->type)
     {
         case tree::node_type_t::VAL:
-            return tree::new_node (0.0);
+            return NEW (0.0);
 
         case tree::node_type_t::VAR:
             if (node->var == 'x') return tree::new_node(1.0);
@@ -160,6 +153,7 @@ static tree::node_t *diff_op (tree::node_t *node)
     assert (node != nullptr && "invalid pointer");
     assert (node->type == tree::node_type_t::OP && "invalid node");
 
+// diff func доьавляет dA
     switch (node->op)
     {
         case tree::op_t::ADD:  return add (dL, dR);
@@ -174,16 +168,13 @@ static tree::node_t *diff_op (tree::node_t *node)
             return add (mul (dL, cR), mul(cL, dR));
 
         case tree::op_t::SIN:
-            return mul (cos (cA), dA);
+            return diff_complex (cos (cA));
 
         case tree::op_t::COS:
-            return mul (
-                            mul (NEW(-1.0), sin (cA)),
-                            dA
-                       );
+            return diff_complex (mul (NEW(-1.0), sin (cA)));
 
         case tree::op_t::EXP:
-            return mul (cS, dA);
+            return diff_complex (cS);
 
         case tree::op_t::POW:
             if (is_const_subtree (node->right)) {
@@ -206,10 +197,7 @@ static tree::node_t *diff_op (tree::node_t *node)
             }
 
         case tree::op_t::LOG:
-            return mul (
-                        div (NEW(1.0), cS), 
-                        dA 
-                       );
+            return diff_complex (div (NEW(1.0), cS));
 
         default:
             assert(0 && "Unexpected op type");
@@ -269,11 +257,7 @@ static bool simplify_const_subtree (tree::node_t *node)
             break;
     }
 
-    if (hasLeft)
-    {
-        tree::del_left (node);
-    }
-    tree::del_right (node);
+    tree::del_childs (node);
 
     return true;
 }
@@ -450,7 +434,7 @@ static bool simplify_primitive_sin (tree::node_t *node)
 {
     assert (node != nullptr && "invalid pointer");
 
-    if (isVAL(node->right) && iseq (Lval, 0)) {
+    if (isVAL(node->right) && iseq (Aval, 0)) {
         change_node (node, 0.0);
         CLEAN_AND_RETURN();
     }
@@ -462,7 +446,7 @@ static bool simplify_primitive_cos (tree::node_t *node)
 {
     assert (node != nullptr && "invalid pointer");
 
-    if (isVAL(node->right) && iseq (Rval, 0)) {
+    if (isVAL(node->right) && iseq (Aval, 0)) {
         change_node (node, 1.0);
         CLEAN_AND_RETURN();
     }
@@ -475,7 +459,7 @@ static bool simplify_primitive_exp (tree::node_t *node)
 {
     assert (node != nullptr && "invalid pointer");
 
-    if (isVAL(node->right) && iseq (Rval, 0)) {
+    if (isVAL(node->right) && iseq (Aval, 0)) {
         change_node (node, 1.0);
         CLEAN_AND_RETURN();
     }
@@ -488,7 +472,8 @@ static bool simplify_primitive_pow (tree::node_t *node)
 {
     assert (node != nullptr && "invalid pointer");
 
-    if (isVAL(node->right) && iseq (Rval, 1)) {
+    if (isVAL(node->right) && iseq (Aval, 1)) { //isArg
+        tree::del_right (node);
         move_node (node, node->left);
         return true;
     }
@@ -501,7 +486,7 @@ static bool simplify_primitive_log (tree::node_t *node)
 {
     assert (node != nullptr && "invalid pointer");
 
-    if (isVAL(node->right) && iseq (Rval, 1)) {
+    if (isVAL(node->right) && iseq (Aval, 1)) {
         change_node (node, 0.0);
         CLEAN_AND_RETURN();
     }
@@ -561,61 +546,6 @@ static bool is_const_subtree (tree::node_t *start_node)
     return tree::dfs_exec (start_node,  check_is_const, nullptr,
                                         nullptr,        nullptr,
                                         nullptr,        nullptr);
-}
-
-// ----------------------------------------------------------------------------
-
-static tree::node_t *op_with_childs (tree::node_t *lhs, tree::node_t *rhs, tree::op_t op)
-{
-    tree::node_t *op_node = tree::new_node(op);
-    if (op_node == nullptr) return nullptr;
-
-    op_node->left  = lhs;
-    op_node->right = rhs;
-
-    return op_node;
-}
-
-// ----------------------------------------------------------------------------
-
-static tree::node_t *add (tree::node_t *lhs, tree::node_t *rhs)
-{
-    return op_with_childs (lhs, rhs, tree::op_t::ADD);
-}
-
-static tree::node_t *sub (tree::node_t *lhs, tree::node_t *rhs)
-{
-    return op_with_childs(lhs, rhs, tree::op_t::SUB);
-}
-
-static tree::node_t *div (tree::node_t *lhs, tree::node_t *rhs)
-{
-    return op_with_childs(lhs, rhs, tree::op_t::DIV);
-}
-
-static tree::node_t *mul (tree::node_t *lhs, tree::node_t *rhs)
-{
-    return op_with_childs(lhs, rhs, tree::op_t::MUL);
-}
-
-static tree::node_t *pow (tree::node_t *lhs, tree::node_t *rhs)
-{
-    return op_with_childs(lhs, rhs, tree::op_t::POW);
-}
-
-static tree::node_t *sin (tree::node_t *arg)
-{
-    return op_with_childs(nullptr, arg, tree::op_t::SIN);
-}
-
-static tree::node_t *cos (tree::node_t *arg)
-{
-    return op_with_childs(nullptr, arg, tree::op_t::COS);
-}
-
-static tree::node_t *log (tree::node_t *arg)
-{
-    return op_with_childs(nullptr, arg, tree::op_t::LOG);
 }
 
 // ----------------------------------------------------------------------------

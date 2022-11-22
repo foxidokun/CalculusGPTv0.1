@@ -9,3 +9,4 @@ dump/
 .idea
 *.txt
 .vscode
+render/
