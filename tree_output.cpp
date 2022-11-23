@@ -1,28 +1,44 @@
-#include <cassert>
-#include <cstdio>
-#include <cstdlib>
-#include "common.h"
-#include "lib/log.h"
+#include <assert.h>
+
+#include "list/include/common.h"
 #include "tree.h"
 #include "tree_output.h"
 
+// -------------------------------------------------------------------------------------------------
+
 #include "tex_consts.h"
+const int FRAMES_OFFSET = 2;
+const int MAX_CHILD_CNT = 26;
+
+const int MAX_CMD_LEN   = 150;
 
 // -------------------------------------------------------------------------------------------------
 
-const char TEX_FILENAME_FORMAT[] = "render/%u.tex";
-const char PDF_FILENAME_FORMAT[] = "render/%u.pdf";
-const int  FILENAME_LEN          = sizeof (PDF_FILENAME_FORMAT) + 4;
-const int  CMD_LEN               = FILENAME_LEN + 40;
+#define EMIT_MAIN(str, ...)   fprintf (render->main_file,     str, ##__VA_ARGS__);
+#define EMIT_APDX(str, ...)   fprintf (render->appendix_file, str, ##__VA_ARGS__);
+
+#define isTYPE(node, node_type) (node->type == tree::node_type_t::node_type)
+#define isOPTYPE(node, op_type) (node->op == tree::op_t::op_type)
+
+#define isALPHA(node) (node->alpha_index != 0)
+
+#define NOT_SPLITTED_DIV(node) !isALPHA(node) && isTYPE(node, OP) && isOPTYPE(node, DIV)
+
+typedef void (*dump_f)(tree::node_t *node, FILE *stream);
 
 // -------------------------------------------------------------------------------------------------
-// HEADER SECTION
-// -------------------------------------------------------------------------------------------------
 
-static void get_files (FILE **tex, char *pdf);
-static bool dump_node_pre  (tree::node_t *node, void *stream_void, bool);
-static bool dump_node_in   (tree::node_t *node, void *stream_void, bool);
-static bool dump_node_post (tree::node_t *node, void *stream_void, bool);
+static int split_subtree (render::render_t *render, tree::node_t *node);
+
+static void dump_splitted (render::render_t *render, tree::node_t *node, FILE *stream);
+
+static void dfs_dump (tree::node_t *node, FILE *stream, dump_f pre_exec,
+                                                        dump_f in_exec,   
+                                                        dump_f post_exec);
+
+static void dump_node_pre  (tree::node_t *node, FILE *stream);
+static void dump_node_in   (tree::node_t *node, FILE *stream);
+static void dump_node_post (tree::node_t *node, FILE *stream);
 
 static void dump_node_content  (FILE *stream, tree::node_t *node);
 static void dump_node_operator (FILE *stream, tree::node_t *node);
@@ -30,136 +46,241 @@ static void dump_node_operator (FILE *stream, tree::node_t *node);
 static bool need_parentheses (tree::node_t *operator_node, tree::node_t *operand_node);
 
 // -------------------------------------------------------------------------------------------------
-// DEFINE SECTION
-// -------------------------------------------------------------------------------------------------
-
-#define isTYPE(node, node_type) (node->type == tree::node_type_t::node_type)
-
-#define isOPTYPE(node, op_type) (node->op == tree::op_t::op_type)
-
-// -------------------------------------------------------------------------------------------------
 // PUBLIC SECTION
 // -------------------------------------------------------------------------------------------------
 
-void tree::render_tex (tree_t *trees[], size_t n_trees)
+int render::render_ctor (render_t *render, const char *main_filename, const char *appendix_filename)
 {
-    assert (trees != nullptr && "invalid pointer");
+    assert (render            != nullptr && "invalid call");
+    assert (main_filename     != nullptr && "invalid pointer");
+    assert (appendix_filename != nullptr && "invalid pointer");
+    
+    render->main_file         = fopen (main_filename,     "w"); if (!render->main_file) return ERROR;
+    render->appendix_file     = fopen (appendix_filename, "w"); if (!render->main_file) return ERROR;
+    render->main_filename     = main_filename;
+    render->appendix_filename = appendix_filename;
+    render->frame_cnt         = FRAMES_OFFSET;
+    render->last_alpha_indx   = 0;
 
-    FILE *tex_file = nullptr;
-    char tex_filename[FILENAME_LEN] = "";
+    EMIT_MAIN (MAIN_BEGIN);
+    EMIT_APDX (APPENDIX_BEGIN);
 
-    get_files (&tex_file, tex_filename);
-    if (tex_file == nullptr)
+    return 0;
+}
+
+// -------------------------------------------------------------------------------------------------
+
+void render::render_dtor (render_t *render)
+{        
+    assert (render != nullptr && "invalid pointer");
+
+    EMIT_MAIN (MAIN_END);
+    EMIT_APDX (APPENDIX_END);
+    
+    fclose (render->main_file);
+    fclose (render->appendix_file);
+
+    const char cmd_fmt[] = "pdflatex -output-directory='render/' %s > /dev/null &&"
+                           "pdflatex -output-directory='render/' %s > /dev/null";
+    char cmd[MAX_CMD_LEN] = "";
+
+    sprintf (cmd, cmd_fmt, render->main_filename, render->appendix_filename);
+    system  (cmd);
+}
+
+// -------------------------------------------------------------------------------------------------
+
+void render::push_frame (render_t *render, frame_format_t format,
+                                                            tree::node_t* lhs, tree::node_t *rhs)
+{
+    assert (render != nullptr && "invalid pointer");
+    assert (lhs != nullptr && "invalid pointer");
+    assert ((format != frame_format_t::DIFFIRENTIAL || rhs != nullptr) && "invalid call");
+
+    EMIT_MAIN (FRAME_BEG);
+    EMIT_APDX (APDX_FRAME_BEG);
+
+    if (format == frame_format_t::DIFFIRENTIAL)
     {
-        LOG (log::ERR, "Failed to open file %s", tex_filename);
+        EMIT_MAIN ("\\frac {\\partial}{\\partial x} \\left(");
+        dump_splitted (render, lhs, render->main_file);
+        EMIT_MAIN ("\\right) = ");
+        dump_splitted (render, rhs, render->main_file);
+    }
+    else if (format == frame_format_t::SIMPLIFICATION)
+    {
+        EMIT_MAIN (" = ");
+        dump_splitted (render, lhs, render->main_file);
     }
 
-    fprintf (tex_file, TEX_BEGIN);
+    EMIT_MAIN (FRAME_END);
+    EMIT_APDX (APDX_FRAME_END);
 
-    for (size_t i = 0; i < n_trees; ++i)
-    {
-        fprintf (tex_file, FRAME_BEG);
-
-        dfs_exec (trees[i], dump_node_pre,  tex_file,
-                            dump_node_in,   tex_file,
-                            dump_node_post, tex_file);
-
-        fprintf (tex_file, FRAME_END);
-    }
-
-    fprintf (tex_file, TEX_END);
-    fclose (tex_file);
-
-    char cmd[CMD_LEN] = "";
-    sprintf (cmd, "pdflatex -output-directory='render/' %s", tex_filename);
-    system (cmd);
+    render->frame_cnt++;
 }
 
 // -------------------------------------------------------------------------------------------------
 // STATIC SECTION
 // -------------------------------------------------------------------------------------------------
 
-static void get_files (FILE **tex_file, char* tex_filename)
+static int split_subtree (render::render_t *render, tree::node_t *node)
 {
-    assert (tex_file     != nullptr && "invalid pointer");
-    assert (tex_filename != nullptr && "invalid pointer");
+    assert (node   != nullptr && "invalid pointer");
+    assert (render != nullptr && "invalid pointer");
 
-    static unsigned int cnt = 0;
-    cnt++;
+    if (isALPHA(node) || node->type != tree::node_type_t::OP)
+    {
+        return 1;
+    }
 
-    sprintf (tex_filename, TEX_FILENAME_FORMAT, cnt);
-    *tex_file = fopen (tex_filename, "w");
+    int left_cnt  = (node->left ) ? split_subtree (render, node->left ) : 0;
+    int right_cnt = (node->right) ? split_subtree (render, node->right) : 0;
+
+    int cur_cnt   = left_cnt + right_cnt + 1;
+
+    if (cur_cnt > MAX_CHILD_CNT)
+    {
+        EMIT_APDX (FORMULA_BEG);
+        EMIT_APDX ("\\alpha_{%d} = ", render->last_alpha_indx + 1);
+
+        dfs_dump (node, render->appendix_file,  dump_node_pre, 
+                                                dump_node_in,  
+                                                dump_node_post);
+
+        node->alpha_index = ++render->last_alpha_indx;
+
+        EMIT_APDX ("\n");
+        EMIT_APDX (FORMULA_END);
+
+        return 1;
+    }
+
+    return cur_cnt;
 }
 
 // -------------------------------------------------------------------------------------------------
 
-static bool dump_node_pre (tree::node_t *node, void *stream_void, bool)
+static void dump_splitted (render::render_t *render, tree::node_t *node, FILE *stream)
+{
+    assert (render != nullptr && "invalid pointer");
+    assert (node   != nullptr && "invalid pointer");
+    assert (stream != nullptr && "invalid pointer");
+
+    split_subtree (render, node);
+
+    dfs_dump (node, stream, dump_node_pre,
+                            dump_node_in, 
+                            dump_node_post);
+}
+
+// -------------------------------------------------------------------------------------------------
+
+static void dfs_dump (tree::node_t *node, FILE *stream, dump_f pre_exec,
+                                                        dump_f in_exec,   
+                                                        dump_f post_exec)
 {
     assert (node        != nullptr && "invalid pointer");
-    assert (stream_void != nullptr && "invalid pointer");
+    assert (stream      != nullptr && "invalid pointer");
 
-    FILE *stream = (FILE *) stream_void;
+    if (pre_exec != nullptr)
+    {
+        pre_exec (node, stream);
+    }
 
-    if (isTYPE(node, OP) && isOPTYPE(node, DIV))
+    if (!isALPHA(node) && node->left != nullptr)
+    {
+        dfs_dump (node->left, stream,   pre_exec,
+                                        in_exec,
+                                        post_exec);
+    }
+
+    if (in_exec != nullptr)
+    {
+        in_exec (node, stream);
+
+    }
+
+    if (!isALPHA(node) && node->right != nullptr)
+    {
+        dfs_dump (node->right, stream,  pre_exec,
+                                        in_exec,
+                                        post_exec);
+    }
+
+    if (post_exec != nullptr)
+    {
+        post_exec (node, stream);
+    }
+}
+
+// -------------------------------------------------------------------------------------------------
+
+static void dump_node_pre (tree::node_t *node, FILE *stream)
+{
+    assert (node   != nullptr && "invalid pointer");
+    assert (stream != nullptr && "invalid pointer");
+
+    if (NOT_SPLITTED_DIV (node))
     {
         fprintf (stream, " \\frac { ");
-        return true;
+        return;
     }
+
+    fprintf (stream, "{");
 
     if (need_parentheses (node, node->left))
     {
-        fprintf (stream, " {\\left( ");
+        fprintf (stream, " \\left( ");
     }
 
-    return true;
+    return;
 }
 
-static bool dump_node_in (tree::node_t *node, void *stream_void, bool)
+static void dump_node_in (tree::node_t *node, FILE *stream)
 {
-    assert (node        != nullptr && "invalid pointer");
-    assert (stream_void != nullptr && "invalid pointer");
+    assert (node   != nullptr && "invalid pointer");
+    assert (stream != nullptr && "invalid pointer");
 
-    FILE *stream = (FILE *) stream_void;
-
-    if (isTYPE(node, OP) && isOPTYPE(node, DIV))
+    if (NOT_SPLITTED_DIV (node))
     {
         fprintf (stream, " }{");
-        return true;
+        return;
     }
 
     if (need_parentheses (node, node->left)) {
-        fprintf (stream, " \\right)} ");
+        fprintf (stream, " \\right) ");
     }
 
+    fprintf (stream, "}");
     dump_node_content (stream, node);
+    fprintf (stream, "{");
 
     if (need_parentheses (node, node->right)) {
-        fprintf (stream, " {\\left( ");
+        fprintf (stream, " \\left( ");
     }
 
-    return true;
+    return;
 }
 
 
-static bool dump_node_post (tree::node_t *node, void *stream_void, bool)
+static void dump_node_post (tree::node_t *node, FILE *stream)
 {
-    assert (node        != nullptr && "invalid pointer");
-    assert (stream_void != nullptr && "invalid pointer");
+    assert (node   != nullptr && "invalid pointer");
+    assert (stream != nullptr && "invalid pointer");
 
-    FILE *stream = (FILE *) stream_void;
-
-    if (isTYPE(node, OP) && isOPTYPE(node, DIV))
+    if (NOT_SPLITTED_DIV (node))
     {
         fprintf (stream, "}");
-        return true;
+        return;
     }
-
+    
     if (need_parentheses (node, node->right))
     {
-        fprintf (stream, " \\right)} ");
+        fprintf (stream, " \\right)");
     }
 
-    return true;
+    fprintf (stream, "}");
+    return;
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -168,6 +289,12 @@ static void dump_node_content (FILE *stream, tree::node_t *node)
 {
     assert (stream != nullptr && "invalid pointer");
     assert (node   != nullptr && "invalid pointer");
+
+    if (isALPHA(node))
+    {
+        fprintf (stream, "\\alpha_{%d}", node->alpha_index);
+        return;
+    }
 
     switch (node->type)
     {
@@ -229,15 +356,17 @@ static bool need_parentheses (tree::node_t *operator_node, tree::node_t *operand
 {
     assert (operator_node != nullptr && "invalid pointer");
 
-    if (operand_node == nullptr)
-    {
+    if (operand_node == nullptr) {
+        return false;
+    }
+
+    if (isALPHA(operator_node) || isALPHA(operand_node) != 0) {
         return false;
     }
 
     if (!isTYPE(operand_node, OP))
     {
-        if (isTYPE (operand_node, VAL) && operand_node->val < 0)
-        {
+        if (isTYPE (operand_node, VAL) && operand_node->val < 0) {
             return true;
         }
 
@@ -273,3 +402,5 @@ static bool need_parentheses (tree::node_t *operator_node, tree::node_t *operand
             assert (0 && "unexpeted op");
     }
 }
+
+// -------------------------------------------------------------------------------------------------

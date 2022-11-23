@@ -1,9 +1,11 @@
 #include <assert.h>
 #include <math.h>
 
+#include "list/list.h"
 #include "tree.h"
 #include "tree_dsl.h"
 #include "diff_calc.h"
+#include "tree_output.h"
 
 // ----------------------------------------------------------------------------
 // CONST SECTION
@@ -16,10 +18,8 @@ const double DBL_ERROR = 1e-11;
 // STATIC HEADER SECTION
 // ----------------------------------------------------------------------------
 
-static tree::node_t *diff_subtree (tree::node_t *node);
-static tree::node_t *diff_op      (tree::node_t *node);
-
-static tree::node_t *copy_subtree (tree::node_t *node);
+static tree::node_t *diff_subtree (tree::node_t *node, render::render_t *render);
+static tree::node_t *diff_op      (tree::node_t *node, render::render_t *render);
 
 static bool simplify_const_subtree     (tree::node_t *node);
 static bool simplify_primitive_subtree (tree::node_t *node);
@@ -43,13 +43,13 @@ static bool iseq (double lhs, double rhs);
 // DEFINE SECTION
 // ----------------------------------------------------------------------------
 
-#define dR diff_subtree (node->right)
-#define dL diff_subtree (node->left )
+#define dR diff_subtree (node->right, render)
+#define dL diff_subtree (node->left , render)
 #define dA dR
 
-#define cR copy_subtree (node->right)
-#define cL copy_subtree (node->left )
-#define cS copy_subtree (node)
+#define cR tree::copy_subtree (node->right)
+#define cL tree::copy_subtree (node->left )
+#define cS tree::copy_subtree (node)
 #define cA cR
 
 #define NEW(x) tree::new_node(x)
@@ -83,26 +83,36 @@ static bool iseq (double lhs, double rhs);
 
 #define diff_complex(func_diff) mul (func_diff, dA)
 
+#define PUSH_FRAME(type, lhs, ...)                                                      \
+{                                                                                       \
+    if (render != nullptr)                                                              \
+    {                                                                                   \
+        render::push_frame (render, render::frame_format_t::type, lhs, ##__VA_ARGS__);  \
+    }                                                                                   \
+}
+
 // -------------------------------------------------------------------------------------------------
 // PUBLIC SECTION
 // -------------------------------------------------------------------------------------------------
 
-tree::tree_t tree::calc_diff (const tree::tree_t *src)
+tree::tree_t tree::calc_diff (const tree::tree_t *src, render::render_t *render)
 {
     assert (src != nullptr);
     tree::tree_t res = {};
     tree::ctor (&res);
 
-    res.head_node = diff_subtree (src->head_node);
+    res.head_node = diff_subtree (src->head_node, render);
     
     return res;
 }
 
 // -------------------------------------------------------------------------------------------------
 
-void tree::simplify (tree::tree_t *tree)
+void tree::simplify (tree::tree_t *tree, render::render_t *render)
 {
     assert (tree != nullptr && "invalid pointer");
+
+    assert (render != nullptr); // TODO remove
 
     bool not_simplified = true;
 
@@ -110,11 +120,17 @@ void tree::simplify (tree::tree_t *tree)
     {
         not_simplified &= simplify_const_subtree (tree->head_node);
         
-        tree::graph_dump (tree, "Simplification round: const");
-        
+        if (not_simplified) {
+            tree::graph_dump (tree, "Simplification round: const");
+            PUSH_FRAME (SIMPLIFICATION, tree->head_node);
+        }
+
         not_simplified &= simplify_primitive_subtree (tree->head_node);
 
-        tree::graph_dump (tree, "Simplification round: primitive");
+        if (not_simplified) {
+            tree::graph_dump (tree, "Simplification round: primitive");
+            PUSH_FRAME (SIMPLIFICATION, tree->head_node);
+        }
     }
 }
 
@@ -122,21 +138,29 @@ void tree::simplify (tree::tree_t *tree)
 // STATIC SECTION
 // -------------------------------------------------------------------------------------------------
 
-static tree::node_t *diff_subtree (tree::node_t *node)
+#define RETURN(node)        \
+{                           \
+    res_node = node;        \
+    goto dump_and_return;   \
+}
+
+static tree::node_t *diff_subtree (tree::node_t *node, render::render_t *render)
 {
     assert (node != nullptr && "invalid pointer");
+
+    tree::node_t *res_node = nullptr;
 
     switch (node->type)
     {
         case tree::node_type_t::VAL:
-            return NEW (0.0);
+            RETURN (NEW (0.0));
 
         case tree::node_type_t::VAR:
-            if (node->var == 'x') return tree::new_node(1.0);
-            else                  return tree::new_node(0.0);
+            if (node->var == 'x') RETURN (tree::new_node(1.0))
+            else                  RETURN (tree::new_node(0.0))
 
         case tree::node_type_t::OP:
-            return diff_op (node);
+            RETURN (diff_op (node, render));
 
         case tree::node_type_t::NOT_SET:
             assert (0 && "Invalid node type for diff");
@@ -144,11 +168,19 @@ static tree::node_t *diff_subtree (tree::node_t *node)
         default:
             assert (0 && "Unexpected node type");
     }
+
+
+    dump_and_return:
+        PUSH_FRAME (DIFFIRENTIAL, node, res_node);
+
+        return res_node;
 }
+
+#undef RETURN
 
 // -------------------------------------------------------------------------------------------------
 
-static tree::node_t *diff_op (tree::node_t *node)
+static tree::node_t *diff_op (tree::node_t *node, render::render_t *render)
 {
     assert (node != nullptr && "invalid pointer");
     assert (node->type == tree::node_type_t::OP && "invalid node");
@@ -233,6 +265,9 @@ static bool simplify_const_subtree (tree::node_t *node)
     simplified |= simplify_const_subtree (node->right);
 
     if ((hasLeft && notVAL (node->left)) || notVAL (node->right)) {
+        if (simplified) {
+            node->alpha_index = 0;
+        }
         return simplified;
     }
 
@@ -259,6 +294,7 @@ static bool simplify_const_subtree (tree::node_t *node)
 
     tree::del_childs (node);
 
+    node->alpha_index = 0;
     return true;
 }
 
@@ -305,6 +341,8 @@ static bool simplify_primitive_subtree (tree::node_t *node)
 
     if (is_smpled)
     {
+        node->alpha_index = 0;
+
         return true;
     }
 
@@ -312,6 +350,10 @@ static bool simplify_primitive_subtree (tree::node_t *node)
         is_smpled |= simplify_primitive_subtree (node->left);
     }
     is_smpled |= simplify_primitive_subtree (node->right);
+
+    if (is_smpled) {
+        node->alpha_index = 0;
+    }
 
     return is_smpled;
 }
@@ -495,45 +537,6 @@ static bool simplify_primitive_log (tree::node_t *node)
 }
 
 #undef CLEAN_AND_RETURN
-
-// -------------------------------------------------------------------------------------------------
-
-#define NEW_NODE_IN_CASE(type, field)               \
-    case tree::node_type_t::type:                   \
-        node_copy = tree::new_node (node->field);   \
-        if (node_copy == nullptr) return nullptr;   \
-        break;
-
-static tree::node_t *copy_subtree (tree::node_t *node)
-{
-    assert (node != nullptr && "nvalid pointer");
-
-    tree::node_t *node_copy = nullptr;
-
-    switch (node->type)
-    {
-        NEW_NODE_IN_CASE(OP,  op);
-        NEW_NODE_IN_CASE(VAL, val);
-        NEW_NODE_IN_CASE(VAR, var);
-        
-        case tree::node_type_t::NOT_SET:
-            assert (0 && "Incomplete node");
-        default:
-            assert (0 && "Invalid node type");
-    }
-
-    if (hasRight) {
-        node_copy->right = copy_subtree (node->right);
-    }
-
-    if (hasLeft) {
-        node_copy->left  = copy_subtree (node->left);
-    }
-
-    return node_copy;
-}
-
-#undef NEW_NODE_IN_CASE
 
 // -------------------------------------------------------------------------------------------------
 

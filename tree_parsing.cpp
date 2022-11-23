@@ -113,6 +113,8 @@ static tree::node_t *GetExpression (const char **input_str)
         } else {
             node = sub (node, node_rhs);
         }
+
+        SKIP_SPACES();
     }
 
     SUCCESS();
@@ -142,6 +144,8 @@ static tree::node_t *GetAddOperand (const char **input_str)
         } else {
             node = div (node, node_rhs);
         }
+
+        SKIP_SPACES();
     }
 
     SUCCESS();
@@ -166,6 +170,8 @@ static tree::node_t *GetMulOperand (const char **input_str)
         TRY (node_rhs = GetFuncOperand (&str));
 
         node = pow (node, node_rhs);
+
+        SKIP_SPACES();
     }
 
     SUCCESS();

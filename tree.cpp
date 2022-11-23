@@ -22,7 +22,7 @@
 const int REASON_LEN   = 50;
 
 const char PREFIX[] = "digraph {\nnode [shape=record,style=\"filled\"]\nsplines=spline;\n";
-static const size_t DUMP_FILE_PATH_LEN = 15;
+static const size_t DUMP_FILE_PATH_LEN = 20;
 static const char DUMP_FILE_PATH_FORMAT[] = "dump/%d.grv";
 
 // -------------------------------------------------------------------------------------------------
@@ -122,6 +122,49 @@ void tree::move_node (node_t *dest, node_t *src)
 
     free (src);
 }
+
+// -------------------------------------------------------------------------------------------------
+
+#define NEW_NODE_IN_CASE(type, field)               \
+    case tree::node_type_t::type:                   \
+        node_copy = tree::new_node (node->field);   \
+        if (node_copy == nullptr) return nullptr;   \
+        break;
+
+tree::node_t *tree::copy_subtree (tree::node_t *node)
+{
+    assert (node != nullptr && "invalid pointer");
+
+    tree::node_t *node_copy = nullptr;
+
+    switch (node->type)
+    {
+        NEW_NODE_IN_CASE(OP,  op);
+        NEW_NODE_IN_CASE(VAL, val);
+        NEW_NODE_IN_CASE(VAR, var);
+        
+        case tree::node_type_t::NOT_SET:
+            assert (0 && "Incomplete node");
+        default:
+            assert (0 && "Invalid node type");
+    }
+
+    if (node->right != nullptr) {
+        node_copy->right = copy_subtree (node->right);
+    } else {
+        node_copy->right = nullptr;
+    }
+
+    if (node->left != nullptr) {
+        node_copy->left = copy_subtree (node->left);
+    } else {
+        node_copy->left = nullptr;
+    }
+
+    return node_copy;
+}
+
+#undef NEW_NODE_IN_CASE
 
 // -------------------------------------------------------------------------------------------------
 
@@ -288,7 +331,8 @@ tree::node_t *tree::new_node ()
     const tree::node_t default_node = {};
     memcpy (node, &default_node, sizeof (tree::node_t));
 
-    node->type    = node_type_t::NOT_SET;    
+    node->type    = node_type_t::NOT_SET;   
+    node->alpha_index  = 0; 
 
     return node;
 }
@@ -388,8 +432,8 @@ static bool dfs_recursion (tree::node_t *node, tree::walk_f pre_exec,  void *pre
     if (cont && node->left != nullptr)
     {
         cont = cont && dfs_recursion (node->left, pre_exec,  pre_param,
-                                   in_exec,   in_param,
-                                   post_exec, post_param);
+                                                  in_exec,   in_param,
+                                                  post_exec, post_param);
     }
 
     if (in_exec != nullptr)
@@ -424,9 +468,9 @@ static bool node_codegen (tree::node_t *node, void *stream_void, bool)
     char buf[MAX_NODE_LEN] = "";
     format_node (buf, node);
 
-    fprintf (stream, "node_%p [label = \"%s | {l: %p | r: %p}\"]\n",
+    fprintf (stream, "node_%p [label = \"%s | {l: %p | r: %p} | alpha_index = %d\"]\n",
                                                         node, buf,
-                                                        node->left, node->right);
+                                                        node->left, node->right, node->alpha_index);
 
     if (node->left != nullptr)
     {

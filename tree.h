@@ -37,6 +37,8 @@ namespace tree
             unsigned char var;
         };
 
+        int alpha_index = 0;
+
         node_t *left    = nullptr;
         node_t *right   = nullptr;
     };
@@ -71,6 +73,8 @@ namespace tree
     void change_node (node_t *node, unsigned char var);
 
     void move_node (node_t *dest, node_t *src);
+
+    tree::node_t *copy_subtree (tree::node_t *node);
 
     void store (tree_t *tree, FILE *stream);
     tree::tree_err_t load (tree_t *tree, FILE *dump);
