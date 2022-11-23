@@ -1,6 +1,6 @@
 #include <assert.h>
 
-#include "list/include/common.h"
+#include "common.h"
 #include "tree.h"
 #include "tree_output.h"
 
