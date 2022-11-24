@@ -296,7 +296,7 @@ static tree::node_t *GetQuant (const char **input_str)
     SKIP_SPACES();
     if (isalpha (*str))
     {
-        node = tree::new_node ((unsigned char) *str);
+        node = tree::new_node (*str);
         str++;
 
         SUCCESS ();
