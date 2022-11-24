@@ -1,4 +1,6 @@
 #include <cassert>
+#include <cstdlib>
+#include <time.h>
 #include <stdio.h>
 #include "tree.h"
 #include "diff_calc.h"
@@ -6,13 +8,15 @@
 
 int main()
 {
+    srand(time(NULL));
+
     FILE *dump = fopen ("inp.txt", "r");
 
     tree::tree_t tree       = {};
     render::render_t render = {};
 
     tree::ctor (&tree);
-    render::render_ctor (&render, "render/main.tex", "render/apndx.tex");
+    render::render_ctor (&render, "render/main.tex", "render/apndx.tex", "render/voice.txt");
 
     tree::load (&tree, dump);
 

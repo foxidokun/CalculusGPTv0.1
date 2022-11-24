@@ -16,6 +16,7 @@ const int MAX_CMD_LEN   = 150;
 
 #define EMIT_MAIN(str, ...)   fprintf (render->main_file,     str, ##__VA_ARGS__);
 #define EMIT_APDX(str, ...)   fprintf (render->appendix_file, str, ##__VA_ARGS__);
+#define EMIT_SPCH(str, ...)   fprintf (render->speech_file, str, ##__VA_ARGS__);
 
 #define isTYPE(node, node_type) (node->type == tree::node_type_t::node_type)
 #define isOPTYPE(node, op_type) (node->op == tree::op_t::op_type)
@@ -49,21 +50,26 @@ static bool need_parentheses (tree::node_t *operator_node, tree::node_t *operand
 // PUBLIC SECTION
 // -------------------------------------------------------------------------------------------------
 
-int render::render_ctor (render_t *render, const char *main_filename, const char *appendix_filename)
+int render::render_ctor (render_t *render, const char *main_filename, const char *appendix_filename,
+                                                                      const char *speech_filename)
 {
     assert (render            != nullptr && "invalid call");
     assert (main_filename     != nullptr && "invalid pointer");
     assert (appendix_filename != nullptr && "invalid pointer");
+    assert (speech_filename   != nullptr && "invalid pointer");
     
     render->main_file         = fopen (main_filename,     "w"); if (!render->main_file) return ERROR;
-    render->appendix_file     = fopen (appendix_filename, "w"); if (!render->main_file) return ERROR;
+    render->appendix_file     = fopen (appendix_filename, "w"); if (!render->appendix_file) return ERROR;
+    render->speech_file       = fopen (speech_filename,   "w"); if (!render->speech_file) return ERROR;
     render->main_filename     = main_filename;
     render->appendix_filename = appendix_filename;
+    render->speech_filename   = speech_filename;
     render->frame_cnt         = FRAMES_OFFSET;
     render->last_alpha_indx   = 0;
 
     EMIT_MAIN (MAIN_BEGIN);
     EMIT_APDX (APPENDIX_BEGIN);
+    EMIT_SPCH (SPEECH_BEGIN);
 
     return 0;
 }
@@ -79,6 +85,7 @@ void render::render_dtor (render_t *render)
     
     fclose (render->main_file);
     fclose (render->appendix_file);
+    fclose (render->speech_file);
 
     const char cmd_fmt[] = "pdflatex -output-directory='render/' %s > /dev/null &&"
                            "pdflatex -output-directory='render/' %s > /dev/null";
@@ -86,6 +93,8 @@ void render::render_dtor (render_t *render)
 
     sprintf (cmd, cmd_fmt, render->main_filename, render->appendix_filename);
     system  (cmd);
+
+    sprintf (cmd, "./generate_video '%s'", render->speech_filename);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -115,6 +124,8 @@ void render::push_frame (render_t *render, frame_format_t format,
 
     EMIT_MAIN (FRAME_END);
     EMIT_APDX (APDX_FRAME_END);
+
+    EMIT_SPCH ("%s\n", PHRASES[rand() % NUM_PHRASES]);
 
     render->frame_cnt++;
 }
