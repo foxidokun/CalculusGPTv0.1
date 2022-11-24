@@ -12,5 +12,6 @@ tree::node_t *sin (tree::node_t *arg);
 tree::node_t *cos (tree::node_t *arg);
 tree::node_t *log (tree::node_t *arg);
 tree::node_t *exp (tree::node_t *arg);
+tree::node_t *fact (int n);
 
 #endif
