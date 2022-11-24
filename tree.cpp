@@ -34,13 +34,16 @@ static bool dfs_recursion (tree::node_t *node, tree::walk_f pre_exec,  void *pre
                                                tree::walk_f post_exec, void *post_param);
 
 static bool node_codegen (tree::node_t *node, void *stream_void, bool cont);
+
+#ifndef RECURSIVE_LOAD
 static bool load_node    (tree::node_t *node, void *stream_void, bool);
 static bool create_childs_if_needed (tree::node_t *node, void *stream_void, bool);
+static bool eat_closing_bracket (tree::node_t *node, void *stream_void, bool cont);
+#endif
 
 static const char *get_op_name (tree::op_t op);
 static void format_node (char *buf, const tree::node_t *node);
 
-static bool eat_closing_bracket (tree::node_t *node, void *stream_void, bool cont);
 
 // -------------------------------------------------------------------------------------------------
 // PUBLIC SECTION
@@ -365,7 +368,7 @@ tree::node_t *tree::new_node (char var)
     if (node == nullptr) { return nullptr; }
 
     node->type = node_type_t::VAR;
-    node->var  = (unsigned char) var;    
+    node->var  = var;    
 
     return node;
 }
@@ -487,6 +490,8 @@ static bool node_codegen (tree::node_t *node, void *stream_void, bool)
 
 // -------------------------------------------------------------------------------------------------
 
+#ifndef RECURSIVE_LOAD
+
 #define SKIP_SPACES()       \
 {                           \
     while (isspace (c))     \
@@ -594,7 +599,7 @@ static bool load_node (tree::node_t *node, void *stream_void, bool)
     if (isalpha (c))
     {
         node->type = tree::node_type_t::VAR;
-        node->var  = (unsigned char) c;
+        node->var  = (char) c;
         return true;
     }
 
@@ -613,6 +618,8 @@ static bool load_node (tree::node_t *node, void *stream_void, bool)
 }
 
 #undef CASE_OP
+
+#endif
 
 // -------------------------------------------------------------------------------------------------
 
@@ -671,6 +678,8 @@ static const char *get_op_name (tree::op_t op)
 
 // -------------------------------------------------------------------------------------------------
 
+#ifndef RECURSIVE_LOAD
+
 static bool eat_closing_bracket (tree::node_t *node, void *stream_void, bool cont)
 {
     assert (node        != nullptr && "invalid pointer");
@@ -695,3 +704,5 @@ static bool eat_closing_bracket (tree::node_t *node, void *stream_void, bool con
 
     return true;
 }
+
+#endif
