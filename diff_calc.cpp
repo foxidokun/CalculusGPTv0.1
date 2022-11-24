@@ -19,8 +19,8 @@ const double DBL_ERROR = 1e-11;
 // STATIC HEADER SECTION
 // ----------------------------------------------------------------------------
 
-static tree::node_t *diff_subtree (tree::node_t *node, render::render_t *render);
-static tree::node_t *diff_op      (tree::node_t *node, render::render_t *render);
+static tree::node_t *diff_subtree (tree::node_t *node, char var, render::render_t *render);
+static tree::node_t *diff_op      (tree::node_t *node, char var, render::render_t *render);
 
 static bool simplify_const_subtree     (tree::node_t *node);
 static bool simplify_primitive_subtree (tree::node_t *node);
@@ -46,8 +46,8 @@ static bool iseq (double lhs, double rhs);
 // DEFINE SECTION
 // ----------------------------------------------------------------------------
 
-#define dR diff_subtree (node->right, render)
-#define dL diff_subtree (node->left , render)
+#define dR diff_subtree (node->right, var, render)
+#define dL diff_subtree (node->left , var, render)
 #define dA dR
 
 #define cR tree::copy_subtree (node->right)
@@ -106,13 +106,13 @@ static bool iseq (double lhs, double rhs);
 // PUBLIC SECTION
 // -------------------------------------------------------------------------------------------------
 
-tree::tree_t tree::calc_diff (const tree::tree_t *src, render::render_t *render)
+tree::tree_t tree::calc_diff (const tree::tree_t *src, char var, render::render_t *render)
 {
     assert (src != nullptr);
     tree::tree_t res = {};
     tree::ctor (&res);
 
-    res.head_node = diff_subtree (src->head_node, render);
+    res.head_node = diff_subtree (src->head_node, var, render);
     
     return res;
 }
@@ -121,22 +121,21 @@ tree::tree_t tree::calc_diff (const tree::tree_t *src, render::render_t *render)
 
 void tree::simplify (tree::tree_t *tree, render::render_t *render)
 {
-    assert (tree != nullptr && "invalid pointer");
+    simplify (tree->head_node, render);
+}
+
+void tree::simplify (tree::node_t *node, render::render_t *render)
+{
+    assert (node != nullptr && "invalid pointer");
 
     bool not_simplified = true;
 
     while (not_simplified)
     {
-        not_simplified &= simplify_const_subtree (tree->head_node);
+        not_simplified &= simplify_const_subtree (node) || simplify_primitive_subtree (node);
         
         if (not_simplified) {
-            IF_RENDER (render::push_calculation_frame (render, tree->head_node));
-        }
-
-        not_simplified &= simplify_primitive_subtree (tree->head_node);
-
-        if (not_simplified) {
-            IF_RENDER (render::push_calculation_frame (render, tree->head_node));
+            IF_RENDER (render::push_calculation_frame (render, node));
         }
     }
 }
@@ -147,21 +146,20 @@ tree::tree_t tree::taylor_series (const tree::tree_t *src, int order, render::re
 {
     assert (src != nullptr);
 
-    const int buf_size             = sizeof ("Вычисление %d производной") + 3;
+    const int buf_size             = sizeof ("Вычисление %d производной") + 10;
     char subsection_name[buf_size] = "";
 
     tree::node_t *current_diff  = src->head_node;
-    tree::node_t *taylor_series = current_diff;
+    rename_variable (current_diff, 'x', 'a');
 
-    rename_variable (taylor_series, 'x', 'a');
+    tree::node_t *taylor_series = copy_subtree (current_diff);
 
     for (int i = 1; i <= order; ++i)
     {
         IF_RENDER (sprintf (subsection_name, "Вычисление %d производной", i));
         IF_RENDER (render::push_subsection (render, subsection_name));
 
-        current_diff = diff_subtree (current_diff, render);
-        rename_variable (current_diff, 'x', 'a');
+        current_diff = diff_subtree (current_diff, 'a', render);
 
         taylor_series = add (taylor_series,
                              mul (
@@ -174,7 +172,11 @@ tree::tree_t tree::taylor_series (const tree::tree_t *src, int order, render::re
                         );
     }
 
-    //TODO Frame gen
+
+    tree::simplify (taylor_series, render);
+
+    IF_RENDER (render::push_subsection (render, "Итоговый ответ"));
+    IF_RENDER (render::push_taylor_frame (render, src->head_node, taylor_series, order));
 
     tree::tree_t res = {};
     tree::ctor (&res);
@@ -200,7 +202,7 @@ tree::tree_t *calc_tree (const tree::tree_t *src, int x, render::render_t *rende
     goto dump_and_return;   \
 }
 
-static tree::node_t *diff_subtree (tree::node_t *node, render::render_t *render)
+static tree::node_t *diff_subtree (tree::node_t *node, char var, render::render_t *render)
 {
     assert (node != nullptr && "invalid pointer");
 
@@ -212,11 +214,11 @@ static tree::node_t *diff_subtree (tree::node_t *node, render::render_t *render)
             RETURN (NEW (0.0));
 
         case tree::node_type_t::VAR:
-            if (node->var == 'x') RETURN (tree::new_node(1.0))
+            if (node->var == var) RETURN (tree::new_node(1.0))
             else                  RETURN (tree::new_node(0.0))
 
         case tree::node_type_t::OP:
-            RETURN (diff_op (node, render));
+            RETURN (diff_op (node, var, render));
 
         case tree::node_type_t::NOT_SET:
             assert (0 && "Invalid node type for diff");
@@ -227,7 +229,7 @@ static tree::node_t *diff_subtree (tree::node_t *node, render::render_t *render)
 
 
     dump_and_return:
-        IF_RENDER (render::push_diff_frame (render, node, res_node));
+        IF_RENDER (render::push_diff_frame (render, node, res_node, var));
 
         return res_node;
 }
@@ -236,12 +238,11 @@ static tree::node_t *diff_subtree (tree::node_t *node, render::render_t *render)
 
 // -------------------------------------------------------------------------------------------------
 
-static tree::node_t *diff_op (tree::node_t *node, render::render_t *render)
+static tree::node_t *diff_op (tree::node_t *node, char var, render::render_t *render)
 {
     assert (node != nullptr && "invalid pointer");
     assert (node->type == tree::node_type_t::OP && "invalid node");
 
-// diff func доьавляет dA
     switch (node->op)
     {
         case tree::op_t::ADD:  return add (dL, dR);
@@ -606,7 +607,7 @@ static void rename_variable (tree::node_t *node, const char old_var, const char 
 {
     assert (node != nullptr && "invalid pointer");
 
-    _rename_dfs_parameters params = {old_var, new_var};
+    _rename_dfs_parameters params_struct = {old_var, new_var};
 
     tree::walk_f rename_node = [](tree::node_t *node_in, void* params_void, bool)
     {
@@ -620,7 +621,7 @@ static void rename_variable (tree::node_t *node, const char old_var, const char 
     };
 
     tree::dfs_exec (node, nullptr,     nullptr,
-                          rename_node, nullptr,
+                          rename_node, &params_struct,
                           nullptr,     nullptr);
 }
 
