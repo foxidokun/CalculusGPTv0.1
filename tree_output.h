@@ -19,11 +19,13 @@ namespace render
 
     int render_ctor (render_t *render, const char *main_file, const char *appendix_file,
                                                               const char *speech_filename);
+
     void render_dtor (render_t *render);
 
     void push_diff_frame        (render_t *render, tree::node_t* lhs, tree::node_t *rhs, char var = 'x');
-    void push_calculation_frame (render_t *render, tree::node_t* tree);
+    void push_simplify_frame    (render_t *render, tree::node_t* tree);
     void push_taylor_frame      (render_t *render, tree::node_t *orig, tree::node_t *series, int order);
+    void push_calculation_frame (render_t *render, tree::node_t *orig, double answer);
     
     void push_section    (render_t *render, const char *name);
     void push_subsection (render_t *render, const char *name);

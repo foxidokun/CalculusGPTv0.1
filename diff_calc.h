@@ -11,6 +11,8 @@ namespace tree {
     void simplify (node_t *node, render::render_t *render = nullptr);
 
     tree_t taylor_series (const tree_t *src, int order, render::render_t *render = nullptr);
+
+    double calc_tree (const tree::tree_t *tree, int x, render::render_t *render = nullptr);
 }
 
 #endif

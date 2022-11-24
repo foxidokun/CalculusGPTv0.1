@@ -51,11 +51,7 @@ const char MAIN_BEGIN[] =
 "\\frame{\\titlepage}\n"
 "\n"
 "\\begin{frame}{План лекции}\n"
-"    \\begin {itemize}\n"
-"        \\item Покрываем себя в матанализ\n"
-"        \\item LaTeX круто\n"
-"        \\item Прога позволяет их объединить\n"
-"    \\end {itemize}\n"
+"  \\tableofcontents\n"
 "\\end{frame}\n";
 
 const char MAIN_END[] = "\\end{document}\n";

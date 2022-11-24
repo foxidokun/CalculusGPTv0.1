@@ -36,6 +36,8 @@ static bool simplify_primitive_exp     (tree::node_t *node);
 static bool simplify_primitive_pow     (tree::node_t *node);
 static bool simplify_primitive_log     (tree::node_t *node);
 
+static double calc_subtree (const tree::node_t *node, int x, render::render_t *render = nullptr);
+
 static void rename_variable (tree::node_t *node, char old_var, char new_var);
 
 static bool is_const_subtree (tree::node_t *start_node);
@@ -135,7 +137,7 @@ void tree::simplify (tree::node_t *node, render::render_t *render)
         not_simplified &= simplify_const_subtree (node) || simplify_primitive_subtree (node);
         
         if (not_simplified) {
-            IF_RENDER (render::push_calculation_frame (render, node));
+            IF_RENDER (render::push_simplify_frame (render, node));
         }
     }
 }
@@ -187,9 +189,16 @@ tree::tree_t tree::taylor_series (const tree::tree_t *src, int order, render::re
 
 // -------------------------------------------------------------------------------------------------
 
-tree::tree_t *calc_tree (const tree::tree_t *src, int x, render::render_t *render)
+double tree::calc_tree (const tree::tree_t *tree, int x, render::render_t *render)
 {
-    assert(0 && "not implemented");
+    assert(tree != nullptr && "invalid pointer");
+
+    double ans = calc_subtree (tree->head_node, x, render);
+
+    IF_RENDER (render::push_subsection (render, "Вычисление значения"));
+    IF_RENDER (render::push_calculation_frame (render, tree->head_node, ans));
+
+    return ans;
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -415,6 +424,8 @@ static bool simplify_primitive_subtree (tree::node_t *node)
     return is_smpled;
 }
 
+#undef SIMPLIFY_OP
+
 // -------------------------------------------------------------------------------------------------
 
 #define CLEAN_AND_RETURN()  \
@@ -594,6 +605,61 @@ static bool simplify_primitive_log (tree::node_t *node)
 }
 
 #undef CLEAN_AND_RETURN
+
+// -------------------------------------------------------------------------------------------------
+
+static double calc_subtree (const tree::node_t *node, int x, render::render_t *render)
+{
+    assert(node != nullptr && "invalid pointer");
+
+    double left  = NAN;
+    double right = NAN;
+
+    if (node->left != nullptr) {
+        left = calc_subtree (node->left, x);
+    }
+
+    if (node->right != nullptr) {
+        right = calc_subtree (node->right, x);
+    }
+
+    printf ("Node type: %d, val %lg var '%c' op %d left %lg right %lg \n", node->type, node->val, node->var, node->op, left, right);
+
+    switch (node->type)
+    {
+        case tree::node_type_t::VAL:
+            return node->val;
+
+        case tree::node_type_t::VAR:
+            if (node->var == 'x') {
+                return x;
+            } else {
+                return NAN;
+            }
+
+        case tree::node_type_t::OP:
+            assert (node->right != nullptr && "Invalid op");
+
+            switch (node->op)
+            {
+                case tree::op_t::ADD: return left + right;
+                case tree::op_t::SUB: return left - right;
+                case tree::op_t::DIV: return left / right;
+                case tree::op_t::MUL: return left * right;
+                case tree::op_t::SIN: return sin (right);
+                case tree::op_t::COS: return cos (right);
+                case tree::op_t::EXP: return exp (right);
+                case tree::op_t::POW: return pow (left, right);
+                case tree::op_t::LOG: return log (right);
+
+                default:
+                    assert (0 && "Unexpected op type");
+            }
+
+        default:
+            assert (0 && "unexpected node type");
+    }
+}
 
 // -------------------------------------------------------------------------------------------------
 

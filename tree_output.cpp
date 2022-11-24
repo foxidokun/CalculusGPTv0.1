@@ -88,8 +88,8 @@ void render::render_dtor (render_t *render)
     fclose (render->appendix_file);
     fclose (render->speech_file);
 
-    const char cmd_fmt[] = "pdflatex -output-directory='render/' %s -quiet && "
-                           "pdflatex -output-directory='render/' %s -quiet";
+    const char cmd_fmt[] = "pdflatex -output-directory='render/' %s && "
+                           "pdflatex -output-directory='render/' %s";
     char cmd[MAX_CMD_LEN] = "";
 
     sprintf (cmd, cmd_fmt, render->main_filename, render->appendix_filename);
@@ -121,7 +121,9 @@ void render::push_diff_frame (render_t *render, tree::node_t* lhs, tree::node_t 
     render->frame_cnt++;
 }
 
-void render::push_calculation_frame (render_t *render, tree::node_t* tree)
+// -------------------------------------------------------------------------------------------------
+
+void render::push_simplify_frame (render_t *render, tree::node_t* tree)
 {
     assert (render != nullptr && "invalid pointer");
     assert (tree   != nullptr && "invalid pointer");
@@ -140,6 +142,8 @@ void render::push_calculation_frame (render_t *render, tree::node_t* tree)
     render->frame_cnt++;
 }
 
+// -------------------------------------------------------------------------------------------------
+
 void render::push_section (render_t *render, const char *name)
 {
     assert (render != nullptr && "invalid pointer");
@@ -149,6 +153,8 @@ void render::push_section (render_t *render, const char *name)
     EMIT_APDX ("\\section {%s}\n", name);
 }
 
+// -------------------------------------------------------------------------------------------------
+
 void render::push_subsection (render_t *render, const char *name)
 {
     assert (render != nullptr && "invalid pointer");
@@ -157,6 +163,8 @@ void render::push_subsection (render_t *render, const char *name)
     EMIT_MAIN ("\\subsection {%s}\n", name);
     EMIT_APDX ("\\subsection {%s}\n", name);
 }
+
+// -------------------------------------------------------------------------------------------------
 
 void render::push_raw_frame (render_t *render, const char *content, const char *speaker_text)
 {
@@ -173,6 +181,8 @@ void render::push_raw_frame (render_t *render, const char *content, const char *
     render->frame_cnt++;
 }
 
+// -------------------------------------------------------------------------------------------------
+
 void render::push_taylor_frame (render_t *render, tree::node_t *orig, tree::node_t *series, int order)
 {
     assert (render != nullptr && "invalid pointer");
@@ -185,6 +195,24 @@ void render::push_taylor_frame (render_t *render, tree::node_t *orig, tree::node
     EMIT_MAIN (" = ");
     dump_splitted (render, series, render->main_file);
     EMIT_MAIN(" + \\tilde{o} (x^{%d})", order);
+
+    EMIT_MAIN (FRAME_END);
+    EMIT_APDX (APDX_FRAME_END);
+    EMIT_SPCH ("%s\n", PHRASES[rand() % NUM_PHRASES]);
+    render->frame_cnt++;
+}
+
+// -------------------------------------------------------------------------------------------------
+
+void render::push_calculation_frame (render_t *render, tree::node_t *orig, double answer)
+{
+    assert (render != nullptr && "invalid pointer");
+
+    EMIT_MAIN (FRAME_BEG);
+
+    dump_splitted (render, orig, render->main_file);
+    EMIT_MAIN (" = ");
+    EMIT_MAIN("%lg", answer);
 
     EMIT_MAIN (FRAME_END);
     EMIT_APDX (APDX_FRAME_END);
