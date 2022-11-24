@@ -10,21 +10,53 @@ const char MAIN_BEGIN[] =
 "\\author{Гладышев Илья / Б05-233}\n"
 "\\institute{MIPT}\n"
 "\\graphicspath{ {assets} }\n"
-"\\logo{\\includegraphics[height=1cm]{rei}}\n"
+"\n"
+"\\usepackage{tikz}\n"
+"\n"
+"\\usetikzlibrary{shapes.callouts, calc}\n"
+"\n"
+"\\newcommand\\DuckSetup[3]{\n"
+"\\foreach \\n in {1,...,#2}{\n"
+"\\zpgfdeclareimage[width=#3,page=\\n]{duck\\n}{#1}}\n"
+"\\def\\ducknumberofpages{#2}}\n"
+"\n"
+"\\DuckSetup{livsi}{2}{2cm}\n"
+"\n"
+"\\newcommand\\duck{\n"
+"\\tikz[remember picture]{\\node (duck) {\n"
+"\\pgfmathparse{int(mod(\\thepage-1,\\ducknumberofpages)+1)}\n"
+"\\pgfuseimage{duck\\pgfmathresult}};}\n"
+"}\n"
+"\n"
+"\\setbeamertemplate{footline}\n"
+"{\n"
+"\\pgfmathparse{(\\thepage-1)*\\paperwidth/\\insertdocumentendpage}\n"
+"\\hspace{\\pgfmathresult pt}\n"
+"\\duck\n"
+"}\n"
+"\n"
+"\\setbeamertemplate{navigation symbols}{}\n"
+"\n"
+"\\newcommand<>{\\ducksez}[1]{\n"
+"\\uncover#2{\\tikz[remember picture,overlay]{\\node[ellipse callout, draw, fill=white, overlay,\n"
+"callout absolute pointer={($ (duck.north east) + (1,0) $)}] at ($ (duck.north east) + (3,1)\n"
+"$) {#1};}}}\n"
+"\n"
+"\\newcommand<>{\\ducksezrev}[1]{\n"
+"\\uncover#2{\\tikz[remember picture,overlay]{\\node[ellipse callout, draw, fill=white, overlay,\n"
+"callout absolute pointer={(duck.north west)}] at ($ (duck.north west) + (-3,1) $) {#1};}}}\n"
 "\n"
 "\\begin{document}\n"
 "\n"
 "\\frame{\\titlepage}\n"
 "\n"
-"\\begin{frame}{Оглавление}\n"
+"\\begin{frame}{План лекции}\n"
 "    \\begin {itemize}\n"
 "        \\item Покрываем себя в матанализ\n"
 "        \\item LaTeX круто\n"
 "        \\item Прога позволяет их объединить\n"
 "    \\end {itemize}\n"
-"\\end{frame}\n"
-"\n"
-;
+"\\end{frame}\n";
 
 const char MAIN_END[] = "\\end{document}\n";
 
@@ -43,8 +75,11 @@ const char APPENDIX_BEGIN[] =
 
 const char APPENDIX_END[]   = "\\end{document}\n";
 
-const char FRAME_BEG[] = "\\begin{frame}\n\\begin{dmath}\n";
+const char FRAME_BEG[] = "\\begin{frame}{\\secname :: \\subsecname}\n\\begin{dmath}\n";
 const char FRAME_END[] = "\n\\end{dmath}\n\\end{frame}\n";
+
+const char FRAME_BLOCK_BEG[] = "\\begin{frame}{\\secname ::\\subsecname}\n";
+const char FRAME_BLOCK_END[] = "\\end{frame}\n";
 
 const char APDX_FRAME_BEG[] = "\n";
 const char APDX_FRAME_END[] = "\n";
@@ -59,7 +94,6 @@ const char SPEECH_BEGIN[]   =
 "Чтож тут изображено краткое оглавление последубщего курса, надеюсь оно вас заинтересовало "
 "достаточно, чтобы решиться на такой важный шаг, как изучение матан+ализа в первый раз. "
 "Многие пытались и не осилили, но автор верит в вас\n";
-
 
 const int NUM_PHRASES = 47;
 
