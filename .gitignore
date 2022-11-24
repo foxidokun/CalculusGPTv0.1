@@ -10,3 +10,5 @@ dump/
 *.txt
 .vscode
 render/
+
+sova-tts/
