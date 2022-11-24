@@ -8,8 +8,8 @@
 
 #include "tex_consts.h"
 const int FRAMES_OFFSET = 2;
-const int LOWWATER_CHILD_CNT  = 45;
-const int HIGHWATER_CHILD_CNT = 60;
+const int LOWWATER_CHILD_CNT  = 42;
+const int HIGHWATER_CHILD_CNT = 48;
 
 const int MAX_CMD_LEN   = 150;
 
@@ -88,8 +88,8 @@ void render::render_dtor (render_t *render)
     fclose (render->appendix_file);
     fclose (render->speech_file);
 
-    const char cmd_fmt[] = "pdflatex -output-directory='render/' %s > /dev/null && "
-                           "pdflatex -output-directory='render/' %s > /dev/null";
+    const char cmd_fmt[] = "pdflatex -output-directory='render/' %s -quiet && "
+                           "pdflatex -output-directory='render/' %s -quiet";
     char cmd[MAX_CMD_LEN] = "";
 
     sprintf (cmd, cmd_fmt, render->main_filename, render->appendix_filename);

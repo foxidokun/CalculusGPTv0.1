@@ -61,11 +61,13 @@ const char MAIN_BEGIN[] =
 const char MAIN_END[] = "\\end{document}\n";
 
 const char APPENDIX_BEGIN[] =
-"\\documentclass[12pt,a4paper]{article}\n"
+"\\documentclass[8pt,a3paper]{article}\n"
 "\\usepackage{amsmath,amsthm,amssymb,amsfonts}\n"
 "\\usepackage[utf8]{inputenc}\n"
 "\\usepackage[T1]{fontenc}\n"
 "\\usepackage[english,russian]{babel}\n"
+"\\usepackage{breqn}\n"
+"\\usepackage[left=1.00cm, right=1.00cm, top=1.00cm, bottom=1.50cm]{geometry}\n"
 "\n"
 "\\title{Введение в сорты матанализа}\n"
 "\\author{Гладышев Илья / Б05-233}\n"
@@ -84,8 +86,8 @@ const char FRAME_BLOCK_END[] = "\\end{frame}\n";
 const char APDX_FRAME_BEG[] = "\n";
 const char APDX_FRAME_END[] = "\n";
 
-const char FORMULA_BEG[]    = "\\[";
-const char FORMULA_END[]    = "\\]";
+const char FORMULA_BEG[]    = "\\begin{dmath}";
+const char FORMULA_END[]    = "\\end{dmath}";
 
 const char SPEECH_BEGIN[]   =
 "Дамы и господа, рад приветствовать на своем канале, где я пытаюсь просто и понятно объяснить основы матан+ализа "
