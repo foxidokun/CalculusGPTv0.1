@@ -120,6 +120,8 @@ static tree::node_t *GetExpression (const char **input_str)
     SUCCESS();
 }
 
+// -------------------------------------------------------------------------------------------------
+
 static tree::node_t *GetAddOperand (const char **input_str)
 {
     assert (input_str  != nullptr);
@@ -151,6 +153,8 @@ static tree::node_t *GetAddOperand (const char **input_str)
     SUCCESS();
 }
 
+// -------------------------------------------------------------------------------------------------
+
 static tree::node_t *GetMulOperand (const char **input_str)
 {
     assert (input_str  != nullptr);
@@ -177,6 +181,8 @@ static tree::node_t *GetMulOperand (const char **input_str)
     SUCCESS();
 }
 
+// -------------------------------------------------------------------------------------------------
+
 static tree::node_t *GetFuncOperand (const char **input_str)
 {
     assert (input_str  != nullptr);
@@ -195,7 +201,7 @@ static tree::node_t *GetFuncOperand (const char **input_str)
     SUCCESS();
 }
 
-//TODO разделители между функциями
+// -------------------------------------------------------------------------------------------------
 
 #define TRY_PARSE_FUNC(name, type)              \
 if (strncmp (name, str, sizeof(name) - 1) == 0) \
@@ -248,6 +254,8 @@ static tree::node_t *GetFunction (const char **input_str)
 
 #undef TRY_PARSE_FUNC
 
+// -------------------------------------------------------------------------------------------------
+
 static tree::node_t *GetGeneralOperand (const char **input_str)
 {
     assert (input_str  != nullptr);
@@ -274,6 +282,8 @@ static tree::node_t *GetGeneralOperand (const char **input_str)
 
     SUCCESS();
 }
+
+// -------------------------------------------------------------------------------------------------
 
 static tree::node_t *GetQuant (const char **input_str)
 {
