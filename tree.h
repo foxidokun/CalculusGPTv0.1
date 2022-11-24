@@ -34,7 +34,7 @@ namespace tree
         {
             double val;
             op_t op;
-            unsigned char var;
+            char var;
         };
 
         int alpha_index = 0;
@@ -70,7 +70,7 @@ namespace tree
 
     void change_node (node_t *node, double val);
     void change_node (node_t *node, op_t   op);
-    void change_node (node_t *node, unsigned char var);
+    void change_node (node_t *node, char var);
 
     void move_node (node_t *dest, node_t *src);
 
@@ -84,7 +84,7 @@ namespace tree
     tree::node_t *new_node ();
     tree::node_t *new_node (double val);
     tree::node_t *new_node (op_t   op);
-    tree::node_t *new_node (unsigned char var);
+    tree::node_t *new_node (char var);
 
     void del_node (node_t *node);
 

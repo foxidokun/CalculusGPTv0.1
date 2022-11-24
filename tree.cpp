@@ -103,7 +103,7 @@ void tree::change_node (node_t *node, op_t op)
     node->type = node_type_t::OP;
 }
 
-void tree::change_node (node_t *node, unsigned char var)
+void tree::change_node (node_t *node, char var)
 {
     assert (node != nullptr && "invalid pointer");
 
@@ -359,13 +359,13 @@ tree::node_t *tree::new_node (op_t op)
     return node;
 }
 
-tree::node_t *tree::new_node (unsigned char var)
+tree::node_t *tree::new_node (char var)
 {
     tree::node_t *node = (tree::node_t *) calloc (sizeof (tree::node_t), 1);
     if (node == nullptr) { return nullptr; }
 
     node->type = node_type_t::VAR;
-    node->var  = var;    
+    node->var  = (unsigned char) var;    
 
     return node;
 }
