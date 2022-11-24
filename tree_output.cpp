@@ -99,34 +99,76 @@ void render::render_dtor (render_t *render)
 
 // -------------------------------------------------------------------------------------------------
 
-void render::push_frame (render_t *render, frame_format_t format,
-                                                            tree::node_t* lhs, tree::node_t *rhs)
+void render::push_diff_frame (render_t *render, tree::node_t* lhs, tree::node_t *rhs)
 {
     assert (render != nullptr && "invalid pointer");
     assert (lhs != nullptr && "invalid pointer");
-    assert ((format != frame_format_t::DIFFIRENTIAL || rhs != nullptr) && "invalid call");
 
     EMIT_MAIN (FRAME_BEG);
     EMIT_APDX (APDX_FRAME_BEG);
 
-    if (format == frame_format_t::DIFFIRENTIAL)
-    {
-        EMIT_MAIN ("\\frac {\\partial}{\\partial x} \\left(");
-        dump_splitted (render, lhs, render->main_file);
-        EMIT_MAIN ("\\right) = ");
-        dump_splitted (render, rhs, render->main_file);
-    }
-    else if (format == frame_format_t::SIMPLIFICATION)
-    {
-        EMIT_MAIN (" = ");
-        dump_splitted (render, lhs, render->main_file);
-    }
+    EMIT_MAIN ("\\frac {\\partial}{\\partial x} \\left(");
+    dump_splitted (render, lhs, render->main_file);
+    EMIT_MAIN ("\\right) = ");
+    dump_splitted (render, rhs, render->main_file);
 
     EMIT_MAIN (FRAME_END);
     EMIT_APDX (APDX_FRAME_END);
 
     EMIT_SPCH ("%s\n", PHRASES[rand() % NUM_PHRASES]);
 
+    render->frame_cnt++;
+}
+
+void render::push_calculation_frame (render_t *render, tree::node_t* tree)
+{
+    assert (render != nullptr && "invalid pointer");
+    assert (tree   != nullptr && "invalid pointer");
+
+    EMIT_MAIN (FRAME_BEG);
+    EMIT_APDX (APDX_FRAME_BEG);
+
+    EMIT_MAIN (" = ");
+    dump_splitted (render, tree, render->main_file);
+
+    EMIT_MAIN (FRAME_END);
+    EMIT_APDX (APDX_FRAME_END);
+
+    EMIT_SPCH ("%s\n", PHRASES[rand() % NUM_PHRASES]);
+
+    render->frame_cnt++;
+}
+
+void render::push_section (render_t *render, const char *name)
+{
+    assert (render != nullptr && "invalid pointer");
+    assert (name   != nullptr && "invlaid pointer");
+
+    EMIT_MAIN ("\\section {%s}\n", name);
+    EMIT_APDX ("\\section {%s}\n", name);
+}
+
+void render::push_subsection (render_t *render, const char *name)
+{
+    assert (render != nullptr && "invalid pointer");
+    assert (name   != nullptr && "invlaid pointer");
+
+    EMIT_MAIN ("\\subsection {%s}\n", name);
+    EMIT_APDX ("\\subsection {%s}\n", name);
+}
+
+void render::push_raw_frame (render_t *render, const char *content, const char *speaker_text)
+{
+    assert (render       != nullptr  && "invalid pointer");
+    assert (content      != nullptr && "invalid pointer");
+    assert (speaker_text != nullptr && "invalid pointer");
+
+    EMIT_MAIN (FRAME_BLOCK_BEG);
+
+    EMIT_MAIN ("%s", content);
+
+    EMIT_MAIN (FRAME_BLOCK_END);
+    EMIT_SPCH ("%s\n", speaker_text);
     render->frame_cnt++;
 }
 

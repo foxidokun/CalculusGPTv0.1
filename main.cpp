@@ -2,6 +2,7 @@
 #include <cstdlib>
 #include <time.h>
 #include <stdio.h>
+#include "common.h"
 #include "tree.h"
 #include "diff_calc.h"
 #include "tree_output.h"
@@ -13,23 +14,25 @@ int main()
     FILE *dump = fopen ("inp.txt", "r");
 
     tree::tree_t tree       = {};
-    render::render_t render = {};
-
     tree::ctor (&tree);
-    render::render_ctor (&render, "render/main.tex", "render/apndx.tex", "render/voice.txt");
-
     tree::load (&tree, dump);
 
-    assert (tree.head_node != nullptr);
+    if (tree.head_node == nullptr) {
+        printf ("Invalid input file\n");
+        return ERROR;
+    }
 
-    tree::graph_dump (&tree, "test");
+    render::render_t render = {};
+    render::render_ctor (&render, "render/main.tex", "render/apndx.tex", "render/voice.txt");
+
+    render::push_section    (&render, "Разбор первого выражения");
+    render::push_subsection (&render, "Диффиринцирование");
 
     tree::tree_t res = calc_diff (&tree, &render);
 
-    tree::graph_dump (&res, "after diff");
+    render::push_subsection (&render, "Упрощение");
 
     tree::simplify (&res, &render);
-    tree::graph_dump (&res, "simplified");
 
     tree::dtor(&tree);
     tree::dtor(&res);

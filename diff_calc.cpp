@@ -90,6 +90,14 @@ static bool iseq (double lhs, double rhs);
     }                                                                                   \
 }
 
+#define IF_RENDER(command)  \
+{                           \
+    if (render != nullptr)  \
+    {                       \
+        command;            \
+    }                       \
+}
+
 // -------------------------------------------------------------------------------------------------
 // PUBLIC SECTION
 // -------------------------------------------------------------------------------------------------
@@ -118,15 +126,13 @@ void tree::simplify (tree::tree_t *tree, render::render_t *render)
         not_simplified &= simplify_const_subtree (tree->head_node);
         
         if (not_simplified) {
-            tree::graph_dump (tree, "Simplification round: const");
-            PUSH_FRAME (SIMPLIFICATION, tree->head_node);
+            IF_RENDER (render::push_calculation_frame (render, tree->head_node));
         }
 
         not_simplified &= simplify_primitive_subtree (tree->head_node);
 
         if (not_simplified) {
-            tree::graph_dump (tree, "Simplification round: primitive");
-            PUSH_FRAME (SIMPLIFICATION, tree->head_node);
+            IF_RENDER (render::push_calculation_frame (render, tree->head_node));
         }
     }
 }
@@ -182,7 +188,7 @@ static tree::node_t *diff_subtree (tree::node_t *node, render::render_t *render)
 
 
     dump_and_return:
-        PUSH_FRAME (DIFFIRENTIAL, node, res_node);
+        IF_RENDER (render::push_diff_frame (render, node, res_node));
 
         return res_node;
 }
