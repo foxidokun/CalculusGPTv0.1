@@ -8,7 +8,7 @@
 
 #include "tex_consts.h"
 const int FRAMES_OFFSET = 2;
-const int MAX_CHILD_CNT = 26;
+const int MAX_CHILD_CNT = 48;
 
 const int MAX_CMD_LEN   = 150;
 
