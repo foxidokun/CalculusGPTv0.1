@@ -111,8 +111,6 @@ void tree::simplify (tree::tree_t *tree, render::render_t *render)
 {
     assert (tree != nullptr && "invalid pointer");
 
-    assert (render != nullptr); // TODO remove
-
     bool not_simplified = true;
 
     while (not_simplified)
@@ -131,6 +129,20 @@ void tree::simplify (tree::tree_t *tree, render::render_t *render)
             PUSH_FRAME (SIMPLIFICATION, tree->head_node);
         }
     }
+}
+
+// -------------------------------------------------------------------------------------------------
+
+tree::tree_t *taylor_series (const tree::tree_t *src, int n, render::render_t *render)
+{
+    assert(0 && "not implemented");
+}
+
+// -------------------------------------------------------------------------------------------------
+
+tree::tree_t *calc_tree (const tree::tree_t *src, int x, render::render_t *render)
+{
+    assert(0 && "not implemented");
 }
 
 // -------------------------------------------------------------------------------------------------
