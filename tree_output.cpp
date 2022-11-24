@@ -8,7 +8,8 @@
 
 #include "tex_consts.h"
 const int FRAMES_OFFSET = 2;
-const int MAX_CHILD_CNT = 48;
+const int LOWWATER_CHILD_CNT  = 45;
+const int HIGHWATER_CHILD_CNT = 60;
 
 const int MAX_CMD_LEN   = 150;
 
@@ -87,19 +88,19 @@ void render::render_dtor (render_t *render)
     fclose (render->appendix_file);
     fclose (render->speech_file);
 
-    const char cmd_fmt[] = "pdflatex -output-directory='render/' %s > /dev/null &&"
+    const char cmd_fmt[] = "pdflatex -output-directory='render/' %s > /dev/null && "
                            "pdflatex -output-directory='render/' %s > /dev/null";
     char cmd[MAX_CMD_LEN] = "";
 
     sprintf (cmd, cmd_fmt, render->main_filename, render->appendix_filename);
     system  (cmd);
 
-    sprintf (cmd, "./generate_video '%s'", render->speech_filename);
+    // sprintf (cmd, "./generate_video '%s'", render->speech_filename);
 }
 
 // -------------------------------------------------------------------------------------------------
 
-void render::push_diff_frame (render_t *render, tree::node_t* lhs, tree::node_t *rhs)
+void render::push_diff_frame (render_t *render, tree::node_t* lhs, tree::node_t *rhs, char var)
 {
     assert (render != nullptr && "invalid pointer");
     assert (lhs != nullptr && "invalid pointer");
@@ -107,7 +108,7 @@ void render::push_diff_frame (render_t *render, tree::node_t* lhs, tree::node_t 
     EMIT_MAIN (FRAME_BEG);
     EMIT_APDX (APDX_FRAME_BEG);
 
-    EMIT_MAIN ("\\frac {\\partial}{\\partial x} \\left(");
+    EMIT_MAIN ("\\frac {\\partial}{\\partial %c} \\left(", var);
     dump_splitted (render, lhs, render->main_file);
     EMIT_MAIN ("\\right) = ");
     dump_splitted (render, rhs, render->main_file);
@@ -159,7 +160,7 @@ void render::push_subsection (render_t *render, const char *name)
 
 void render::push_raw_frame (render_t *render, const char *content, const char *speaker_text)
 {
-    assert (render       != nullptr  && "invalid pointer");
+    assert (render       != nullptr && "invalid pointer");
     assert (content      != nullptr && "invalid pointer");
     assert (speaker_text != nullptr && "invalid pointer");
 
@@ -169,6 +170,25 @@ void render::push_raw_frame (render_t *render, const char *content, const char *
 
     EMIT_MAIN (FRAME_BLOCK_END);
     EMIT_SPCH ("%s\n", speaker_text);
+    render->frame_cnt++;
+}
+
+void render::push_taylor_frame (render_t *render, tree::node_t *orig, tree::node_t *series, int order)
+{
+    assert (render != nullptr && "invalid pointer");
+    assert (orig   != nullptr && "invalid pointer");
+    assert (series != nullptr && "invalid pointer");
+
+    EMIT_MAIN (FRAME_BEG);
+
+    dump_splitted (render, orig, render->main_file);
+    EMIT_MAIN (" = ");
+    dump_splitted (render, series, render->main_file);
+    EMIT_MAIN(" + \\tilde{o} (x^{%d})", order);
+
+    EMIT_MAIN (FRAME_END);
+    EMIT_APDX (APDX_FRAME_END);
+    EMIT_SPCH ("%s\n", PHRASES[rand() % NUM_PHRASES]);
     render->frame_cnt++;
 }
 
@@ -189,22 +209,40 @@ static int split_subtree (render::render_t *render, tree::node_t *node)
     int left_cnt  = (node->left ) ? split_subtree (render, node->left ) : 0;
     int right_cnt = (node->right) ? split_subtree (render, node->right) : 0;
 
+    assert (left_cnt  < HIGHWATER_CHILD_CNT);
+    assert (right_cnt < HIGHWATER_CHILD_CNT);
+
     int cur_cnt   = left_cnt + right_cnt + 1;
 
-    if (cur_cnt > MAX_CHILD_CNT)
-    {
+    if (cur_cnt > LOWWATER_CHILD_CNT) {
         EMIT_APDX (FORMULA_BEG);
         EMIT_APDX ("\\alpha_{%d} = ", render->last_alpha_indx + 1);
-
-        dfs_dump (node, render->appendix_file,  dump_node_pre, 
+        
+        if (cur_cnt < HIGHWATER_CHILD_CNT) 
+        {
+            dfs_dump (node, render->appendix_file,  dump_node_pre, 
                                                 dump_node_in,  
                                                 dump_node_post);
 
-        node->alpha_index = ++render->last_alpha_indx;
+            node->alpha_index = ++render->last_alpha_indx;
+            cur_cnt = 1;
+        }
+        else 
+        {
+            tree::node_t *max_node = (left_cnt > right_cnt) ? node->left : node->right;
+
+            dfs_dump (max_node, render->appendix_file,  dump_node_pre, 
+                                                        dump_node_in,  
+                                                        dump_node_post);
+
+            max_node->alpha_index = ++render->last_alpha_indx;
+            
+            cur_cnt = 2 + ((left_cnt > right_cnt) ? left_cnt : right_cnt);
+        }
+
 
         EMIT_APDX ("\n");
         EMIT_APDX (FORMULA_END);
-
         return 1;
     }
 
