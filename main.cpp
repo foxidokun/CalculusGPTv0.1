@@ -8,7 +8,7 @@
 
 int main()
 {
-    srand(time(NULL));
+    srand ((unsigned int) time(NULL));
 
     FILE *dump = fopen ("inp.txt", "r");
 
