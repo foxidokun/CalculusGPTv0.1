@@ -1,5 +1,7 @@
 #include <assert.h>
+#include <cmath>
 #include <math.h>
+#include <wchar.h>
 
 #include "tree.h"
 #include "tree_dsl.h"
@@ -33,6 +35,8 @@ static bool simplify_primitive_cos     (tree::node_t *node);
 static bool simplify_primitive_exp     (tree::node_t *node);
 static bool simplify_primitive_pow     (tree::node_t *node);
 static bool simplify_primitive_log     (tree::node_t *node);
+
+static void rename_variable (tree::node_t *node, char old_var, char new_var);
 
 static bool is_const_subtree (tree::node_t *start_node);
 
@@ -139,9 +143,44 @@ void tree::simplify (tree::tree_t *tree, render::render_t *render)
 
 // -------------------------------------------------------------------------------------------------
 
-tree::tree_t *taylor_series (const tree::tree_t *src, int n, render::render_t *render)
+tree::tree_t tree::taylor_series (const tree::tree_t *src, int order, render::render_t *render)
 {
-    assert(0 && "not implemented");
+    assert (src != nullptr);
+
+    const int buf_size             = sizeof ("Вычисление %d производной") + 3;
+    char subsection_name[buf_size] = "";
+
+    tree::node_t *current_diff  = src->head_node;
+    tree::node_t *taylor_series = current_diff;
+
+    rename_variable (taylor_series, 'x', 'a');
+
+    for (int i = 1; i <= order; ++i)
+    {
+        IF_RENDER (sprintf (subsection_name, "Вычисление %d производной", i));
+        IF_RENDER (render::push_subsection (render, subsection_name));
+
+        current_diff = diff_subtree (current_diff, render);
+        rename_variable (current_diff, 'x', 'a');
+
+        taylor_series = add (taylor_series,
+                             mul (
+                                 current_diff,
+                                 div (
+                                     pow ( sub(NEW('x'), NEW('a')), NEW((double) i) ), // (x-a)^i
+                                     fact (i)                                          // i!
+                                 )
+                             )
+                        );
+    }
+
+    //TODO Frame gen
+
+    tree::tree_t res = {};
+    tree::ctor (&res);
+    res.head_node = taylor_series;
+    
+    return res;
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -437,7 +476,7 @@ static bool simplify_primitive_sub (tree::node_t *node)
             change_node (node, tree::op_t::COS);
             change_node (node->right, tree::op_t::MUL);
             change_node (RL, 2.0);
-            change_node (RR, (unsigned char)'x');
+            change_node (RR, 'x');
             del_left (node);
             return true;
         }
@@ -554,6 +593,36 @@ static bool simplify_primitive_log (tree::node_t *node)
 }
 
 #undef CLEAN_AND_RETURN
+
+// -------------------------------------------------------------------------------------------------
+
+struct _rename_dfs_parameters
+{
+    const char old_var;
+    const char new_var;
+};
+
+static void rename_variable (tree::node_t *node, const char old_var, const char new_var)
+{
+    assert (node != nullptr && "invalid pointer");
+
+    _rename_dfs_parameters params = {old_var, new_var};
+
+    tree::walk_f rename_node = [](tree::node_t *node_in, void* params_void, bool)
+    {
+        _rename_dfs_parameters *params = (_rename_dfs_parameters *) params_void;
+
+        if (isVAR (node_in) && node_in->var == params->old_var) {
+            tree::change_node (node_in, params->new_var);
+        }
+
+        return true;
+    };
+
+    tree::dfs_exec (node, nullptr,     nullptr,
+                          rename_node, nullptr,
+                          nullptr,     nullptr);
+}
 
 // -------------------------------------------------------------------------------------------------
 
