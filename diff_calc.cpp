@@ -196,7 +196,7 @@ double tree::calc_tree (const tree::tree_t *tree, int x, render::render_t *rende
     double ans = calc_subtree (tree->head_node, x, render);
 
     IF_RENDER (render::push_subsection (render, "Вычисление значения"));
-    IF_RENDER (render::push_calculation_frame (render, tree->head_node, ans));
+    IF_RENDER (render::push_calculation_frame (render, tree->head_node, x, ans));
 
     return ans;
 }
@@ -622,8 +622,6 @@ static double calc_subtree (const tree::node_t *node, int x, render::render_t *r
     if (node->right != nullptr) {
         right = calc_subtree (node->right, x);
     }
-
-    printf ("Node type: %d, val %lg var '%c' op %d left %lg right %lg \n", node->type, node->val, node->var, node->op, left, right);
 
     switch (node->type)
     {

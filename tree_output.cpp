@@ -204,14 +204,14 @@ void render::push_taylor_frame (render_t *render, tree::node_t *orig, tree::node
 
 // -------------------------------------------------------------------------------------------------
 
-void render::push_calculation_frame (render_t *render, tree::node_t *orig, double answer)
+void render::push_calculation_frame (render_t *render, tree::node_t *orig, double x, double answer)
 {
     assert (render != nullptr && "invalid pointer");
 
     EMIT_MAIN (FRAME_BEG);
 
     dump_splitted (render, orig, render->main_file);
-    EMIT_MAIN (" = ");
+    EMIT_MAIN ("\\bigg|_{x = %lg} = ", x);
     EMIT_MAIN("%lg", answer);
 
     EMIT_MAIN (FRAME_END);

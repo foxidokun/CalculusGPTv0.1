@@ -51,10 +51,12 @@ int main()
     tree::graph_dump (&calculation, "for fun");
     tree::calc_tree (&calculation, 5, &render);
 
+    render::push_raw_frame (&render, "Спасибо за потраченное время ;/", "И так коллеги, выжившие есть?...");
+
     tree::dtor(&tree);
     tree::dtor(&res);
     tree::dtor(&taylor_tree);
     tree::dtor(&taylor_res);
     tree::dtor(&calculation);
-    // render::render_dtor (&render);
+    render::render_dtor (&render);
 }
