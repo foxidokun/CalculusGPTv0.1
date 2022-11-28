@@ -91,7 +91,7 @@ const char APDX_FRAME_BEG[] = "\n";
 const char APDX_FRAME_END[] = "\n";
 
 const char FORMULA_BEG[]    = "$";
-const char FORMULA_END[]    = "$";
+const char FORMULA_END[]    = "$\n\n";
 
 const char SPEECH_BEGIN[]   =
 "Дамы и господа, рад приветствовать на своем канале, где я пытаюсь просто и понятно объяснить основы матан+ализа "
