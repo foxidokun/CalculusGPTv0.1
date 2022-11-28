@@ -8,8 +8,8 @@
 
 #include "tex_consts.h"
 const int FRAMES_OFFSET = 2;
-const int LOWWATER_CHILD_CNT  = 42;
-const int HIGHWATER_CHILD_CNT = 48;
+const int LOWWATER_CHILD_CNT  = 120;
+const int HIGHWATER_CHILD_CNT = 150;
 
 const int MAX_CMD_LEN   = 150;
 
@@ -110,7 +110,7 @@ void render::push_diff_frame (render_t *render, tree::node_t* lhs, tree::node_t 
 
     EMIT_MAIN ("\\frac {\\partial}{\\partial %c} \\left(", var);
     dump_splitted (render, lhs, render->main_file);
-    EMIT_MAIN ("\\right) = ");
+    EMIT_MAIN ("\\right) \\allowbreak = \\allowbreak ");
     dump_splitted (render, rhs, render->main_file);
 
     EMIT_MAIN (FRAME_END);
@@ -123,6 +123,32 @@ void render::push_diff_frame (render_t *render, tree::node_t* lhs, tree::node_t 
 
 // -------------------------------------------------------------------------------------------------
 
+void render::push_diff_task_frame (render_t *render, tree::node_t* lhs, char var)
+{
+    EMIT_MAIN (FRAME_BEG);
+    EMIT_APDX (APDX_FRAME_BEG);
+
+    EMIT_MAIN ("\\frac {\\partial}{\\partial %c} (", var);
+    dump_splitted (render, lhs, render->main_file);
+    EMIT_MAIN (") \\allowbreak = ?");
+
+    EMIT_MAIN (FRAME_END);
+    EMIT_APDX (APDX_FRAME_END);
+
+    EMIT_SPCH ("%s\n", PHRASES[rand() % NUM_PHRASES]);
+
+    render->frame_cnt++;
+}
+
+// -------------------------------------------------------------------------------------------------
+
+// токенизация
+// отдельный проход, парсящие лексемы
+
+//Дениел Грис Конструирование компиляторов для цифровых вычисл машин
+//
+//Входят в c++11 регулярные выражения
+
 void render::push_simplify_frame (render_t *render, tree::node_t* tree)
 {
     assert (render != nullptr && "invalid pointer");
@@ -131,7 +157,7 @@ void render::push_simplify_frame (render_t *render, tree::node_t* tree)
     EMIT_MAIN (FRAME_BEG);
     EMIT_APDX (APDX_FRAME_BEG);
 
-    EMIT_MAIN (" = ");
+    EMIT_MAIN ("\\allowbreak = \\allowbreak");
     dump_splitted (render, tree, render->main_file);
 
     EMIT_MAIN (FRAME_END);
@@ -162,6 +188,19 @@ void render::push_subsection (render_t *render, const char *name)
 
     EMIT_MAIN ("\\subsection {%s}\n", name);
     EMIT_APDX ("\\subsection {%s}\n", name);
+    EMIT_MAIN ("\\subsubsection {%s}\n", name);
+    EMIT_APDX ("\\subsubsection {%s}\n", name);
+}
+
+// -------------------------------------------------------------------------------------------------
+
+void render::push_subsubsection (render_t *render, const char *name)
+{
+    assert (render != nullptr && "invalid pointer");
+    assert (name   != nullptr && "invlaid pointer");
+
+    EMIT_MAIN ("\\subsubsection {%s}\n", name);
+    EMIT_APDX ("\\subsubsection {%s}\n", name);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -211,7 +250,7 @@ void render::push_calculation_frame (render_t *render, tree::node_t *orig, doubl
     EMIT_MAIN (FRAME_BEG);
 
     dump_splitted (render, orig, render->main_file);
-    EMIT_MAIN ("\\bigg|_{x = %lg} = ", x);
+    EMIT_MAIN ("\\bigg|_{x = %lg} \\allowbreak = \\allowbreak", x);
     EMIT_MAIN("%lg", answer);
 
     EMIT_MAIN (FRAME_END);
@@ -452,9 +491,9 @@ static void dump_node_operator (FILE *stream, tree::node_t *node)
 
     switch (node->op)
     {
-        OP_FORMAT (ADD, " + ")
-        OP_FORMAT (SUB, " - ")
-        OP_FORMAT (MUL, " \\cdot ")
+        OP_FORMAT (ADD, "\\allowbreak + \\allowbreak")
+        OP_FORMAT (SUB, "\\allowbreak - \\allowbreak")
+        OP_FORMAT (MUL, "\\allowbreak \\cdot \\allowbreak")
         OP_FORMAT (SIN, " \\sin ")
         OP_FORMAT (COS, " \\cos ")
         OP_FORMAT (EXP, " e^ ")

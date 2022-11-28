@@ -81,8 +81,8 @@ const char APPENDIX_BEGIN[] =
 
 const char APPENDIX_END[]   = "\\end{document}\n";
 
-const char FRAME_BEG[] = "\\begin{frame}{\\secname :: \\subsecname}\n\\begin{dmath}\n";
-const char FRAME_END[] = "\n\\end{dmath}\n\\end{frame}\n";
+const char FRAME_BEG[] = "\\begin{frame}{\\secname \\; :: \\subsecname \\; [\\subsubsecname]}\n$\n";
+const char FRAME_END[] = "\n$\n\\end{frame}\n";
 
 const char FRAME_BLOCK_BEG[] = "\\begin{frame}{\\secname ::\\subsecname}\n";
 const char FRAME_BLOCK_END[] = "\\end{frame}\n";
@@ -90,8 +90,8 @@ const char FRAME_BLOCK_END[] = "\\end{frame}\n";
 const char APDX_FRAME_BEG[] = "\n";
 const char APDX_FRAME_END[] = "\n";
 
-const char FORMULA_BEG[]    = "\\begin{dmath}";
-const char FORMULA_END[]    = "\\end{dmath}";
+const char FORMULA_BEG[]    = "$";
+const char FORMULA_END[]    = "$";
 
 const char SPEECH_BEGIN[]   =
 "Дамы и господа, рад приветствовать на своем канале, где я пытаюсь просто и понятно объяснить основы матан+ализа "

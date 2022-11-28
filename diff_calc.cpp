@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <cmath>
+#include <cstddef>
 #include <math.h>
 #include <wchar.h>
 
@@ -36,7 +37,7 @@ static bool simplify_primitive_exp     (tree::node_t *node);
 static bool simplify_primitive_pow     (tree::node_t *node);
 static bool simplify_primitive_log     (tree::node_t *node);
 
-static double calc_subtree (const tree::node_t *node, int x, render::render_t *render = nullptr);
+static double calc_subtree (const tree::node_t *node, double x);
 
 static void rename_variable (tree::node_t *node, char old_var, char new_var);
 
@@ -62,6 +63,8 @@ static bool iseq (double lhs, double rhs);
 #define Lval node->left ->val
 #define Rval node->right->val
 #define Aval node->right->val
+
+#define NodeVal(node) node->val
 
 #define LL  node->left ->left
 #define LR  node->left ->right
@@ -108,17 +111,38 @@ static bool iseq (double lhs, double rhs);
 // PUBLIC SECTION
 // -------------------------------------------------------------------------------------------------
 
-tree::tree_t tree::calc_diff (const tree::tree_t *src, char var, render::render_t *render)
+tree::tree_t tree::calc_diff (const tree::tree_t *src, char var, render::render_t *render, bool verbose)
 {
     assert (src != nullptr);
     tree::tree_t res = {};
     tree::ctor (&res);
 
-    res.head_node = diff_subtree (src->head_node, var, render);
-    
+    res.head_node = calc_diff (src->head_node, var, render, verbose);
+
     return res;
 }
 
+tree::node_t *tree::calc_diff (tree::node_t *src, char var, render::render_t *render, bool verbose)
+{
+    assert (src != nullptr);
+    tree::node_t *res = nullptr;
+
+    IF_RENDER (render::push_subsubsection (render, "Постановка задачи"));
+    IF_RENDER (render::push_diff_task_frame (render, src, var));
+
+    if (verbose) {
+        IF_RENDER (render::push_subsubsection (render, "Расчеты"));
+        res = diff_subtree (src, var, render);
+    } else {
+        IF_RENDER (render::push_subsubsection (render, ""));
+        res = diff_subtree (src, var, nullptr);
+    }
+
+    IF_RENDER (render::push_subsubsection (render, "Получение ответа"));
+    IF_RENDER (render::push_diff_frame (render, src, res, var))
+    
+    return res;
+}
 // -------------------------------------------------------------------------------------------------
 
 void tree::simplify (tree::tree_t *tree, render::render_t *render)
@@ -132,9 +156,15 @@ void tree::simplify (tree::node_t *node, render::render_t *render)
 
     bool not_simplified = true;
 
+    bool const_simplified     = true;
+    bool primitive_simplified = true;
+
     while (not_simplified)
     {
-        not_simplified &= simplify_const_subtree (node) || simplify_primitive_subtree (node);
+        const_simplified     = simplify_const_subtree     (node);
+        primitive_simplified = simplify_primitive_subtree (node); 
+
+        not_simplified &= const_simplified || primitive_simplified;
         
         if (not_simplified) {
             IF_RENDER (render::push_simplify_frame (render, node));
@@ -151,17 +181,17 @@ tree::tree_t tree::taylor_series (const tree::tree_t *src, int order, render::re
     const int buf_size             = sizeof ("Вычисление %d производной") + 10;
     char subsection_name[buf_size] = "";
 
-    tree::node_t *current_diff  = src->head_node;
+    tree::node_t *current_diff  = copy_subtree (src->head_node);
     rename_variable (current_diff, 'x', 'a');
 
-    tree::node_t *taylor_series = copy_subtree (current_diff);
+    tree::node_t *taylor_series = current_diff;
 
     for (int i = 1; i <= order; ++i)
     {
         IF_RENDER (sprintf (subsection_name, "Вычисление %d производной", i));
         IF_RENDER (render::push_subsection (render, subsection_name));
 
-        current_diff = diff_subtree (current_diff, 'a', render);
+        current_diff = calc_diff (current_diff, 'a', render);
 
         taylor_series = add (taylor_series,
                              mul (
@@ -189,11 +219,11 @@ tree::tree_t tree::taylor_series (const tree::tree_t *src, int order, render::re
 
 // -------------------------------------------------------------------------------------------------
 
-double tree::calc_tree (const tree::tree_t *tree, int x, render::render_t *render)
+double tree::calc_tree (const tree::tree_t *tree, double x, render::render_t *render)
 {
     assert(tree != nullptr && "invalid pointer");
 
-    double ans = calc_subtree (tree->head_node, x, render);
+    double ans = calc_subtree (tree->head_node, x);
 
     IF_RENDER (render::push_subsection (render, "Вычисление значения"));
     IF_RENDER (render::push_calculation_frame (render, tree->head_node, x, ans));
@@ -238,8 +268,8 @@ static tree::node_t *diff_subtree (tree::node_t *node, char var, render::render_
 
 
     dump_and_return:
+        tree::simplify (res_node, nullptr);
         IF_RENDER (render::push_diff_frame (render, node, res_node, var));
-
         return res_node;
 }
 
@@ -519,6 +549,32 @@ static bool simplify_primitive_mul (tree::node_t *node)
         return true;
     }
 
+    if (isVAL(node->left) && isOP_TYPE(node->right, MUL))
+    {
+        if (isVAL (RL)) {
+            tree::change_node (node->left, NodeVal (node->left) * NodeVal(RL));
+            tree::del_left (node->right);
+            tree::move_node (node->right, RR);
+        } else if (isVAL (RR)) {
+            tree::change_node (node->left, NodeVal (node->left) * NodeVal(RR));
+            tree::del_right (node->right);
+            tree::move_node (node->right, RL);
+        }
+    }
+
+    if (isVAL(node->right) && isOP_TYPE(node->left, MUL))
+    {
+        if (isVAL (LL)) {
+            tree::change_node (node->left, NodeVal (node->left) * NodeVal(LL));
+            tree::del_left (node->left);
+            tree::move_node (node->left, LR);
+        } else if (isVAL (LR)) {
+            tree::change_node (node->left, NodeVal (node->left) * NodeVal(LR));
+            tree::del_right (node->left);
+            tree::move_node (node->left, LL);
+        }
+    }
+
     return false;
 }
 
@@ -608,7 +664,7 @@ static bool simplify_primitive_log (tree::node_t *node)
 
 // -------------------------------------------------------------------------------------------------
 
-static double calc_subtree (const tree::node_t *node, int x, render::render_t *render)
+static double calc_subtree (const tree::node_t *node, double x)
 {
     assert(node != nullptr && "invalid pointer");
 
@@ -653,6 +709,9 @@ static double calc_subtree (const tree::node_t *node, int x, render::render_t *r
                 default:
                     assert (0 && "Unexpected op type");
             }
+
+        case tree::node_type_t::NOT_SET:
+            assert (0 && "invalid node");
 
         default:
             assert (0 && "unexpected node type");

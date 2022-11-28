@@ -1,4 +1,5 @@
 #include <cassert>
+#include <cmath>
 #include <cstdlib>
 #include <time.h>
 #include <stdio.h>
@@ -7,11 +8,70 @@
 #include "diff_calc.h"
 #include "tree_output.h"
 
+// Исправить и будет 11
+
+// В конце все итоговые результаты
+// В начале выводится функция, с которой работаем
+// Несколько формул на слайде, если они короткие
+// Перенос формул внутри слайда
+// Опустить ненужные cdot и скобочки аргументов функций
+// Если возможно, сделать обозначения буквами
+// Скрипт генерирует хардсабы и встраивает в файл
+
+
+// МОЖЕТ БЫТЬ allowbreak не работает внутри скобочек
+
+int demonstrate_diff   (render::render_t *render);
+int demonstrate_taylor (render::render_t *render);
+int demonstrate_calc   (render::render_t *render);
+
+const char DIFF_FILENAME[]   = "diff.txt";
+const char TAYLOR_FILENAME[] = "diff.txt";
+const char CALC_FILENAME[]   = "diff.txt";
+
+const int TAYLOR_ORDER = 5;
+
+#define TRY(expr)           \
+{                           \
+    if ((expr) == ERROR)    \
+    {                       \
+        return ERROR;       \
+    }                       \
+}
+
+#include "tree_dsl.h"
+
 int main()
 {
     srand ((unsigned int) time(NULL));
 
-    FILE *dump = fopen ("inp.txt", "r");
+    render::render_t render = {};
+    render::render_ctor (&render, "render/main.tex", "render/apndx.tex", "render/voice.txt");
+
+    render::push_section (&render, "Дифференцирование");
+    TRY (demonstrate_diff     (&render));
+
+    render::push_section (&render, "Тейлор");
+    TRY (demonstrate_taylor   (&render));
+
+    render::push_section (&render, "Подсчет третьего выражения");
+    TRY (demonstrate_calc     (&render));
+    
+    render::push_raw_frame (&render, "Спасибо за потраченное время ;/", "И так коллеги, выжившие есть?...");
+
+    render::render_dtor (&render);
+}
+
+int demonstrate_diff (render::render_t *render)
+{
+    assert (render != nullptr && "invalid pointer");
+
+    FILE *dump = fopen (DIFF_FILENAME, "r");
+
+    if (dump == nullptr) {
+        printf ("Failed to open file\n");
+        return ERROR;
+    }
 
     tree::tree_t tree       = {};
     tree::ctor (&tree);
@@ -22,41 +82,77 @@ int main()
         return ERROR;
     }
 
-    render::render_t render = {};
-    render::render_ctor (&render, "render/main.tex", "render/apndx.tex", "render/voice.txt");
-
-    render::push_section    (&render, "Разбор первого выражения");
-    render::push_subsection (&render, "Диффиринцирование");
-    tree::tree_t res = calc_diff (&tree, 'x',&render);
+    render::push_subsection (render, "Дифференцирование");
+    tree::tree_t res = calc_diff (&tree, 'x', render, true);
     
-    render::push_subsection (&render, "Упрощение");
-    tree::simplify (&res, &render);
-
-    render::push_section (&render, "Разбор второго выражения");
-
-    tree::tree_t taylor_tree       = {};
-    tree::tree_t taylor_res        = {};
-    tree::ctor (&taylor_tree);
-    tree::ctor (&taylor_res);
-    tree::load (&taylor_tree, fopen ("taylor.txt", "r"));
-
-    taylor_res = tree::taylor_series (&taylor_tree, 5, &render);
-
-
-    render::push_section (&render, "Подсчет третьего выражения");
-    tree::tree_t calculation       = {};
-    tree::ctor (&calculation);
-    tree::load (&calculation, fopen ("calc.txt", "r")); 
-
-    tree::graph_dump (&calculation, "for fun");
-    tree::calc_tree (&calculation, 5, &render);
-
-    render::push_raw_frame (&render, "Спасибо за потраченное время ;/", "И так коллеги, выжившие есть?...");
+    render::push_subsection (render, "Упрощение");
+    tree::simplify (&res, render);
 
     tree::dtor(&tree);
     tree::dtor(&res);
-    tree::dtor(&taylor_tree);
-    tree::dtor(&taylor_res);
-    tree::dtor(&calculation);
-    render::render_dtor (&render);
+    return 0;
+}
+
+int demonstrate_taylor (render::render_t *render)
+{
+    assert (render != nullptr && "invalid pointer");
+
+    FILE *dump = fopen (TAYLOR_FILENAME, "r");
+
+    if (dump == nullptr) {
+        printf ("Failed to open file\n");
+        return ERROR;
+    }
+
+    tree::tree_t tree       = {};
+    tree::ctor (&tree);
+    tree::load (&tree, dump);
+
+    if (tree.head_node == nullptr) {
+        printf ("Invalid input file\n");
+        return ERROR;
+    }
+
+    tree::tree_t res = tree::taylor_series (&tree, TAYLOR_ORDER, render);
+
+    tree::graph_dump (&res, "after taylor");
+
+    tree::dtor(&tree);
+    tree::dtor(&res);
+
+    return 0;
+}
+
+int demonstrate_calc (render::render_t *render)
+{
+    assert (render != nullptr && "invalid pointer");
+    
+    FILE *dump = fopen (CALC_FILENAME, "r");
+
+    if (dump == nullptr) {
+        printf ("Failed to open file");
+        return ERROR;
+    }
+
+    tree::tree_t tree       = {};
+    tree::ctor (&tree);
+    tree::load (&tree, dump);
+
+    if (tree.head_node == nullptr) {
+        printf ("Invalid input file\n");
+        return ERROR;
+    }
+
+    double x_val = 0;
+    // printf ("Введите значение x для третьего уравнения: ");
+    // while (scanf ("%lg", &x_val) != 1)
+    // {
+    //     printf ("\n Неверный ввод, повторите");
+    //     while (getc (stdin) != '\n') ;
+    // }
+
+    tree::calc_tree (&tree, x_val, render);
+
+    tree::dtor(&tree);
+    return 0;
 }
