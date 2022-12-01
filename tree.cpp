@@ -271,6 +271,35 @@ int tree::graph_dump (tree_t *tree, const char *reason_fmt, ...)
     assert (tree       != nullptr && "pointer can't be nullptr");
     assert (reason_fmt != nullptr && "pointer can't be nullptr");
 
+    va_list args;
+    va_start (args, reason_fmt);
+
+    int res = graph_dump (tree->head_node, reason_fmt, args);
+
+    va_end (args);
+    return res;
+}
+
+
+int tree::graph_dump (node_t *node, const char *reason_fmt, ...)
+{
+    assert (node       != nullptr && "pointer can't be nullptr");
+    assert (reason_fmt != nullptr && "pointer can't be nullptr");
+
+    va_list args;
+    va_start (args, reason_fmt);
+
+    int res = graph_dump (node, reason_fmt, args);
+
+    va_end (args);
+    return res;
+}
+
+int tree::graph_dump (node_t *node, const char *reason_fmt, va_list args)
+{
+    assert (node       != nullptr && "pointer can't be nullptr");
+    assert (reason_fmt != nullptr && "pointer can't be nullptr");
+
     static int counter = 0;
     counter++;
 
@@ -286,7 +315,7 @@ int tree::graph_dump (tree_t *tree, const char *reason_fmt, ...)
 
     fprintf (dump_file, PREFIX);
 
-    dfs_exec (tree, node_codegen, dump_file,
+    dfs_exec (node, node_codegen, dump_file,
                     nullptr, nullptr,
                     nullptr, nullptr);
 
@@ -301,9 +330,6 @@ int tree::graph_dump (tree_t *tree, const char *reason_fmt, ...)
         LOG (log::ERR, "Failed to execute '%s'", cmd);
     }
 
-    va_list args;
-    va_start (args, reason_fmt);
-
     #if HTML_LOGS
         FILE *stream = get_log_stream ();
 
@@ -317,8 +343,6 @@ int tree::graph_dump (tree_t *tree, const char *reason_fmt, ...)
         vsprintf (buf, reason_fmt, args);
         LOG (log::INF, "Dump path: %s.png, reason: %s", filepath, buf);
     #endif
-
-    va_end (args);
 
     fflush (get_log_stream ());
     return counter;

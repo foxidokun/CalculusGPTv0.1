@@ -1,6 +1,7 @@
 #ifndef TREE_H
 #define TREE_H
 
+#include <cstdarg>
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -80,6 +81,8 @@ namespace tree
     tree::tree_err_t load (tree_t *tree, FILE *dump);
 
     int graph_dump (tree_t *tree, const char *reason_fmt, ...);
+    int graph_dump (node_t *node, const char *reason_fmt, ...);
+    int graph_dump (node_t *node, const char *reason_fmt, va_list args);
 
     tree::node_t *new_node ();
     tree::node_t *new_node (double val);

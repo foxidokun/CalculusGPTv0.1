@@ -138,6 +138,8 @@ tree::node_t *tree::calc_diff (tree::node_t *src, char var, render::render_t *re
         res = diff_subtree (src, var, nullptr);
     }
 
+    simplify (res);
+
     IF_RENDER (render::push_subsubsection (render, "Получение ответа"));
     IF_RENDER (render::push_diff_frame (render, src, res, var))
     
@@ -205,7 +207,7 @@ tree::tree_t tree::taylor_series (const tree::tree_t *src, int order, render::re
     }
 
 
-    tree::simplify (taylor_series, render);
+    tree::simplify (taylor_series);
 
     IF_RENDER (render::push_subsection (render, "Итоговый ответ"));
     IF_RENDER (render::push_taylor_frame (render, src->head_node, taylor_series, order));
@@ -565,11 +567,11 @@ static bool simplify_primitive_mul (tree::node_t *node)
     if (isVAL(node->right) && isOP_TYPE(node->left, MUL))
     {
         if (isVAL (LL)) {
-            tree::change_node (node->left, NodeVal (node->left) * NodeVal(LL));
+            tree::change_node (node->right, NodeVal (node->right) * NodeVal(LL));
             tree::del_left (node->left);
             tree::move_node (node->left, LR);
         } else if (isVAL (LR)) {
-            tree::change_node (node->left, NodeVal (node->left) * NodeVal(LR));
+            tree::change_node (node->right, NodeVal (node->right) * NodeVal(LR));
             tree::del_right (node->left);
             tree::move_node (node->left, LL);
         }

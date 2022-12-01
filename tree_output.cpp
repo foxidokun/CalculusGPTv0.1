@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <cstdio>
 
 #include "common.h"
 #include "tree.h"
@@ -8,8 +9,8 @@
 
 #include "tex_consts.h"
 const int FRAMES_OFFSET = 2;
-const int LOWWATER_CHILD_CNT  = 120;
-const int HIGHWATER_CHILD_CNT = 150;
+const int LOWWATER_CHILD_CNT  = 60;
+const int HIGHWATER_CHILD_CNT = 100;
 
 const int MAX_CMD_LEN   = 150;
 
@@ -19,10 +20,20 @@ const int MAX_CMD_LEN   = 150;
 #define EMIT_APDX(str, ...)   fprintf (render->appendix_file, str, ##__VA_ARGS__);
 #define EMIT_SPCH(str, ...)   fprintf (render->speech_file, str, ##__VA_ARGS__);
 
+#define Lval node->left ->val
+#define Rval node->right->val
+
 #define isTYPE(node, node_type) (node->type == tree::node_type_t::node_type)
-#define isOPTYPE(node, op_type) (node->op == tree::op_t::op_type)
+
+#define isOPTYPE(node, op_type) (node->type == tree::node_type_t::OP && \
+                                 node->op   == tree::op_t::op_type)
+
+#define isFUNC(node) (isTYPE(node, OP) && (isOPTYPE(node, SIN) || isOPTYPE(node, COS) || \
+                                           isOPTYPE(node, EXP) || isOPTYPE(node, LOG)))
 
 #define isALPHA(node) (node->alpha_index != 0)
+
+#define isSIMPLE(_node) ((isTYPE (_node, VAL) && _node->val >= 0) || isTYPE (_node, VAR))
 
 #define NOT_SPLITTED_DIV(node) !isALPHA(node) && isTYPE(node, OP) && isOPTYPE(node, DIV)
 
@@ -38,12 +49,18 @@ static void dfs_dump (tree::node_t *node, FILE *stream, dump_f pre_exec,
                                                         dump_f in_exec,   
                                                         dump_f post_exec);
 
+static void subtree_dump   (tree::node_t *node, FILE *stream);
+
 static void dump_node_pre  (tree::node_t *node, FILE *stream);
 static void dump_node_in   (tree::node_t *node, FILE *stream);
 static void dump_node_post (tree::node_t *node, FILE *stream);
 
 static void dump_node_content  (FILE *stream, tree::node_t *node);
 static void dump_node_operator (FILE *stream, tree::node_t *node);
+
+static void dump_alpha (FILE *stream, int index);
+
+static int get_weight (tree::node_t *node);
 
 static bool need_parentheses (tree::node_t *operator_node, tree::node_t *operand_node);
 
@@ -59,9 +76,9 @@ int render::render_ctor (render_t *render, const char *main_filename, const char
     assert (appendix_filename != nullptr && "invalid pointer");
     assert (speech_filename   != nullptr && "invalid pointer");
     
-    render->main_file         = fopen (main_filename,     "w"); if (!render->main_file) return ERROR;
+    render->main_file         = fopen (main_filename,     "w"); if (!render->main_file)     return ERROR;
     render->appendix_file     = fopen (appendix_filename, "w"); if (!render->appendix_file) return ERROR;
-    render->speech_file       = fopen (speech_filename,   "w"); if (!render->speech_file) return ERROR;
+    render->speech_file       = fopen (speech_filename,   "w"); if (!render->speech_file)   return ERROR;
     render->main_filename     = main_filename;
     render->appendix_filename = appendix_filename;
     render->speech_filename   = speech_filename;
@@ -108,9 +125,9 @@ void render::push_diff_frame (render_t *render, tree::node_t* lhs, tree::node_t 
     EMIT_MAIN (FRAME_BEG);
     EMIT_APDX (APDX_FRAME_BEG);
 
-    EMIT_MAIN ("\\frac {\\partial}{\\partial %c} \\left(", var);
+    EMIT_MAIN ("\\frac {\\partial}{\\partial %c} \\left[", var);
     dump_splitted (render, lhs, render->main_file);
-    EMIT_MAIN ("\\right) \\allowbreak = \\allowbreak ");
+    EMIT_MAIN ("\\right] \\allowbreak  = \\allowbreak  ");
     dump_splitted (render, rhs, render->main_file);
 
     EMIT_MAIN (FRAME_END);
@@ -128,9 +145,9 @@ void render::push_diff_task_frame (render_t *render, tree::node_t* lhs, char var
     EMIT_MAIN (FRAME_BEG);
     EMIT_APDX (APDX_FRAME_BEG);
 
-    EMIT_MAIN ("\\frac {\\partial}{\\partial %c} (", var);
+    EMIT_MAIN ("\\frac {\\partial}{\\partial %c} \\left[", var);
     dump_splitted (render, lhs, render->main_file);
-    EMIT_MAIN (") \\allowbreak = ?");
+    EMIT_MAIN ("\\right] \\allowbreak  = ?");
 
     EMIT_MAIN (FRAME_END);
     EMIT_APDX (APDX_FRAME_END);
@@ -142,13 +159,6 @@ void render::push_diff_task_frame (render_t *render, tree::node_t* lhs, char var
 
 // -------------------------------------------------------------------------------------------------
 
-// токенизация
-// отдельный проход, парсящие лексемы
-
-//Дениел Грис Конструирование компиляторов для цифровых вычисл машин
-//
-//Входят в c++11 регулярные выражения
-
 void render::push_simplify_frame (render_t *render, tree::node_t* tree)
 {
     assert (render != nullptr && "invalid pointer");
@@ -157,7 +167,7 @@ void render::push_simplify_frame (render_t *render, tree::node_t* tree)
     EMIT_MAIN (FRAME_BEG);
     EMIT_APDX (APDX_FRAME_BEG);
 
-    EMIT_MAIN ("\\allowbreak = \\allowbreak");
+    EMIT_MAIN ("\\allowbreak  = \\allowbreak ");
     dump_splitted (render, tree, render->main_file);
 
     EMIT_MAIN (FRAME_END);
@@ -233,7 +243,9 @@ void render::push_taylor_frame (render_t *render, tree::node_t *orig, tree::node
     dump_splitted (render, orig, render->main_file);
     EMIT_MAIN (" = ");
     dump_splitted (render, series, render->main_file);
-    EMIT_MAIN(" + \\tilde{o} (x^{%d})", order);
+    EMIT_MAIN(" + \\tilde{o} ((x-a)^{%d})", order);
+    // EMIT_MAIN("$\n\n\n$");
+    // dfs_dump (series, render->main_file, dump_node_pre, dump_node_in, dump_node_post);
 
     EMIT_MAIN (FRAME_END);
     EMIT_APDX (APDX_FRAME_END);
@@ -250,7 +262,7 @@ void render::push_calculation_frame (render_t *render, tree::node_t *orig, doubl
     EMIT_MAIN (FRAME_BEG);
 
     dump_splitted (render, orig, render->main_file);
-    EMIT_MAIN ("\\bigg|_{x = %lg} \\allowbreak = \\allowbreak", x);
+    EMIT_MAIN ("\\bigg|_{x = %lg} \\allowbreak  = \\allowbreak ", x);
     EMIT_MAIN("%lg", answer);
 
     EMIT_MAIN (FRAME_END);
@@ -268,9 +280,9 @@ static int split_subtree (render::render_t *render, tree::node_t *node)
     assert (node   != nullptr && "invalid pointer");
     assert (render != nullptr && "invalid pointer");
 
-    if (isALPHA(node) || node->type != tree::node_type_t::OP)
+    if (isALPHA(node) || !isTYPE(node, OP))
     {
-        return 1;
+        return get_weight(node);
     }
 
     int left_cnt  = (node->left ) ? split_subtree (render, node->left ) : 0;
@@ -279,38 +291,37 @@ static int split_subtree (render::render_t *render, tree::node_t *node)
     assert (left_cnt  < HIGHWATER_CHILD_CNT);
     assert (right_cnt < HIGHWATER_CHILD_CNT);
 
-    int cur_cnt   = left_cnt + right_cnt + 1;
+    int cur_cnt = left_cnt + right_cnt + get_weight(node);
 
     if (cur_cnt > LOWWATER_CHILD_CNT) {
         EMIT_APDX (FORMULA_BEG);
-        EMIT_APDX ("\\alpha_{%d} = ", render->last_alpha_indx + 1);
+        dump_alpha (render->appendix_file, render->last_alpha_indx);
+        EMIT_APDX (" = ");
         
         if (cur_cnt < HIGHWATER_CHILD_CNT) 
         {
-            dfs_dump (node, render->appendix_file,  dump_node_pre, 
-                                                dump_node_in,  
-                                                dump_node_post);
+            subtree_dump (node, render->appendix_file);
 
-            node->alpha_index = ++render->last_alpha_indx;
+            node->alpha_index = render->last_alpha_indx;
             cur_cnt = 1;
         }
         else 
         {
             tree::node_t *max_node = (left_cnt > right_cnt) ? node->left : node->right;
 
-            dfs_dump (max_node, render->appendix_file,  dump_node_pre, 
-                                                        dump_node_in,  
-                                                        dump_node_post);
+            subtree_dump (max_node, render->appendix_file);
 
-            max_node->alpha_index = ++render->last_alpha_indx;
+            max_node->alpha_index = render->last_alpha_indx;
             
             cur_cnt = 2 + ((left_cnt > right_cnt) ? left_cnt : right_cnt);
         }
 
+        render->last_alpha_indx++;
 
         EMIT_APDX ("\n");
         EMIT_APDX (FORMULA_END);
-        return 1;
+        EMIT_APDX ("\n\n\n\n");
+        return cur_cnt;
     }
 
     return cur_cnt;
@@ -326,10 +337,73 @@ static void dump_splitted (render::render_t *render, tree::node_t *node, FILE *s
 
     split_subtree (render, node);
 
-    dfs_dump (node, stream, dump_node_pre,
-                            dump_node_in, 
-                            dump_node_post);
+    subtree_dump (node, stream);
 }
+
+// -------------------------------------------------------------------------------------------------
+
+#define WRAP_PARENTHESS(_parent, _child)        \
+{                                               \
+    fprintf (stream, "{");                      \
+    if (need_parentheses (_parent, _child)) {   \
+        fprintf (stream, " \\left( ");          \
+    }                                           \
+    subtree_dump (_child, stream);              \
+    if (need_parentheses (_parent, _child)) {   \
+        fprintf (stream, " \\right)");          \
+    }                                           \
+    fprintf (stream, "}");                      \
+}
+
+static void subtree_dump (tree::node_t *node, FILE *stream)
+{
+    assert (stream != nullptr && "invalid pointer");
+
+    if (node == nullptr) { return; }
+
+    if (!isTYPE(node, OP) || isALPHA(node)) {
+        dump_node_content (stream, node);
+        return;
+    }
+
+    if (isOPTYPE (node, MUL))
+    {
+        if ((isSIMPLE(node->left)  && !isTYPE(node->right, VAL)) ||
+            //(isSIMPLE(node->right) && !isTYPE(node->left,  VAL)) ||
+            (isFUNC(node->left) && isFUNC(node->right)))
+        {
+            subtree_dump (node->left,  stream);
+            subtree_dump (node->right, stream);
+            return;
+        }
+    }
+
+    if (isOPTYPE (node, DIV))
+    {
+        fprintf(stream, " \\frac { ");
+        subtree_dump (node->left,  stream);
+        fprintf (stream, " }{ ");
+        subtree_dump (node->right, stream);
+        fprintf (stream, " } ");
+        return;
+    }
+
+    if (isOPTYPE (node, POW) && isFUNC (node->left)){
+        dump_node_content (stream, node->left);
+        dump_node_content (stream, node);
+        fprintf (stream, "{");
+        subtree_dump (node->right,   stream);
+        fprintf (stream, "}");
+        WRAP_PARENTHESS (node->left, node->left->right);
+        return;
+    }
+
+    WRAP_PARENTHESS (node, node->left);
+    dump_node_content (stream, node);
+    WRAP_PARENTHESS (node, node->right);
+}
+
+#undef WRAP_PARENTHESS
 
 // -------------------------------------------------------------------------------------------------
 
@@ -380,7 +454,7 @@ static void dump_node_pre (tree::node_t *node, FILE *stream)
 
     if (NOT_SPLITTED_DIV (node))
     {
-        fprintf (stream, " \\frac { ");
+        fprintf (stream, "\\frac{");
         return;
     }
 
@@ -388,7 +462,7 @@ static void dump_node_pre (tree::node_t *node, FILE *stream)
 
     if (need_parentheses (node, node->left))
     {
-        fprintf (stream, " \\left( ");
+        fprintf (stream, "\\left(");
     }
 
     return;
@@ -401,7 +475,7 @@ static void dump_node_in (tree::node_t *node, FILE *stream)
 
     if (NOT_SPLITTED_DIV (node))
     {
-        fprintf (stream, " }{");
+        fprintf (stream, "}{");
         return;
     }
 
@@ -450,7 +524,7 @@ static void dump_node_content (FILE *stream, tree::node_t *node)
 
     if (isALPHA(node))
     {
-        fprintf (stream, "\\alpha_{%d}", node->alpha_index);
+        dump_alpha (stream, node->alpha_index);
         return;
     }
 
@@ -491,9 +565,9 @@ static void dump_node_operator (FILE *stream, tree::node_t *node)
 
     switch (node->op)
     {
-        OP_FORMAT (ADD, "\\allowbreak + \\allowbreak")
-        OP_FORMAT (SUB, "\\allowbreak - \\allowbreak")
-        OP_FORMAT (MUL, "\\allowbreak \\cdot \\allowbreak")
+        OP_FORMAT (ADD, "\\allowbreak  + \\allowbreak ")
+        OP_FORMAT (SUB, "\\allowbreak  - \\allowbreak ")
+        OP_FORMAT (MUL, "\\allowbreak  \\cdot \\allowbreak ")
         OP_FORMAT (SIN, " \\sin ")
         OP_FORMAT (COS, " \\cos ")
         OP_FORMAT (EXP, " e^ ")
@@ -505,6 +579,61 @@ static void dump_node_operator (FILE *stream, tree::node_t *node)
 
         default:
             assert (0 && "Unexpected op");
+    }
+}
+
+// -------------------------------------------------------------------------------------------------
+
+void dump_alpha (FILE *stream, int index)
+{
+    assert (stream != nullptr && "invalid pointer");
+
+    fprintf (stream, "%s_{%d}", LETTERS[index % LETTERS_CNT], index / LETTERS_CNT + 1);
+}
+
+// -------------------------------------------------------------------------------------------------
+
+static int get_weight (tree::node_t *node)
+{
+    assert (node != nullptr);
+
+    if (isALPHA (node) || isTYPE (node, VAR))
+    {
+        return 1;
+    }
+
+    char tmp_buf[20] = "";
+    int n = 0;
+
+    if (isTYPE (node, VAL))
+    {
+        sprintf (tmp_buf, "%lg%n", node->val, &n);
+        return n;
+    }
+
+    assert (isTYPE(node, OP) && "unexpected node");
+
+    switch (node->op)
+    {
+        case tree::op_t::ADD:
+        case tree::op_t::SUB:
+        case tree::op_t::DIV:
+        case tree::op_t::MUL:
+            return 1;
+
+        case tree::op_t::SIN:
+        case tree::op_t::COS:
+        case tree::op_t::LOG:
+            return 3;
+
+        case tree::op_t::EXP:
+            return 1;
+
+        case tree::op_t::POW:
+            return 0;
+        
+        default:
+            assert (0 && "unexpected op");
     }
 }
 
@@ -541,10 +670,14 @@ static bool need_parentheses (tree::node_t *operator_node, tree::node_t *operand
         case tree::op_t::MUL:
             return (isOPTYPE(operand_node, ADD) || isOPTYPE(operand_node, SUB));
         
-        case tree::op_t::SIN:
         case tree::op_t::COS:
+        case tree::op_t::SIN:
         case tree::op_t::LOG:
-            return true;
+            return !((isOPTYPE(operand_node, MUL) && isSIMPLE (operand_node->left)
+                                                  && isSIMPLE (operand_node->right))  ||
+                     
+                     (isOPTYPE(operand_node, POW) && isSIMPLE(operand_node->left))
+                    );
         
         case tree::op_t::POW:
             if (operand_node == operator_node->right) {

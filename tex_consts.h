@@ -65,6 +65,7 @@ const char APPENDIX_BEGIN[] =
 "\\usepackage[english,russian]{babel}\n"
 "\\usepackage{breqn}\n"
 "\\usepackage[left=1.00cm, right=1.00cm, top=1.00cm, bottom=1.50cm]{geometry}\n"
+"\\geometry{paperwidth=400mm}\n"
 "\n"
 "\\title{Общепринятые обозначения}\n"
 "\\author{Гладышев Илья / Б05-233}\n"
@@ -92,6 +93,43 @@ const char APDX_FRAME_END[] = "\n";
 
 const char FORMULA_BEG[]    = "$";
 const char FORMULA_END[]    = "$\n\n";
+
+const int LETTERS_CNT = 33;
+const char *const LETTERS[LETTERS_CNT] = 
+{
+    "\\alpha",
+    "\\beta",
+	"\\gamma",
+	"\\Delta",
+	"\\delta",
+	"\\epsilon",
+	"\\zeta",
+	"\\eta",
+	"\\Theta",
+	"\\theta",
+	"\\iota",
+	"\\kappa",
+	"\\Lambda",
+	"\\lambda,",
+	"\\mu",
+	"\\nu",
+	"\\Xi",
+	"\\xi",
+	"\\Pi",
+	"\\pi",
+	"\\varpi",
+	"\\Sigma",
+	"\\sigma",
+	"\\tau",
+	"\\Phi",
+	"\\phi",
+	"\\varphi",
+	"\\chi",
+	"\\Psi",
+	"\\psi",
+	"\\Omega",
+	"\\omega",
+};
 
 const char SPEECH_BEGIN[]   =
 "Дамы и господа, рад приветствовать на своем канале, где я пытаюсь просто и понятно объяснить основы матан+ализа "
@@ -159,4 +197,5 @@ const char* const PHRASES[NUM_PHRASES] =
     "Редкозубов не найден в файле судоерз, данный инцидент будет отрапортован.",
     "Несложно видеть, что это очевидным образом преобразуется в...",
     "Если вы все еще присутствуете на лекции, вам будет ясно, как божий день, что",
+    // Вспоминая что
 };

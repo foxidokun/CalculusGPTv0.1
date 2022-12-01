@@ -10,16 +10,18 @@
 
 // Исправить и будет 11
 
-// В конце все итоговые результаты
 // В начале выводится функция, с которой работаем
 // Несколько формул на слайде, если они короткие
 // Перенос формул внутри слайда
 // Опустить ненужные cdot и скобочки аргументов функций
 // Если возможно, сделать обозначения буквами
 // Скрипт генерирует хардсабы и встраивает в файл
+// Расставить ударения
 
 
-// МОЖЕТ БЫТЬ allowbreak не работает внутри скобочек
+// МОЖЕТ БЫТЬ allowbreak  не работает внутри скобочек
+
+extern void subtree_dump (tree::node_t *node, FILE *stream); // REMOVE THIS 
 
 int demonstrate_diff   (render::render_t *render);
 int demonstrate_taylor (render::render_t *render);
@@ -29,7 +31,7 @@ const char DIFF_FILENAME[]   = "diff.txt";
 const char TAYLOR_FILENAME[] = "diff.txt";
 const char CALC_FILENAME[]   = "diff.txt";
 
-const int TAYLOR_ORDER = 5;
+const int TAYLOR_ORDER = 3;
 
 #define TRY(expr)           \
 {                           \
@@ -57,6 +59,8 @@ int main()
     render::push_section (&render, "Подсчет третьего выражения");
     TRY (demonstrate_calc     (&render));
     
+    render::push_section(&render,    "kawaii");
+    render::push_subsection(&render, "koto");
     render::push_raw_frame (&render, "Спасибо за потраченное время ;/", "И так коллеги, выжившие есть?...");
 
     render::render_dtor (&render);
@@ -115,7 +119,7 @@ int demonstrate_taylor (render::render_t *render)
 
     tree::tree_t res = tree::taylor_series (&tree, TAYLOR_ORDER, render);
 
-    tree::graph_dump (&res, "after taylor");
+    // tree::graph_dump (&res, "after taylor");
 
     tree::dtor(&tree);
     tree::dtor(&res);
@@ -134,7 +138,7 @@ int demonstrate_calc (render::render_t *render)
         return ERROR;
     }
 
-    tree::tree_t tree       = {};
+    tree::tree_t tree = {};
     tree::ctor (&tree);
     tree::load (&tree, dump);
 
